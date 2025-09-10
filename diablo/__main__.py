@@ -5,20 +5,30 @@ from .tls_handler import start_tls_server, start_tls_client
 from .forwarder import start_forwarding
 
 def main():
-    parser = argparse.ArgumentParser(description="Diablo: LAN Privacy Proxy")
-    parser.add_argument('--mode', choices=['client', 'server'], required=True)
-    parser.add_argument('--server-ip', help='Server IP (client mode)')
+    parser = argparse.ArgumentParser(
+        description="Diablo: Encrypted LAN Privacy Proxy"
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', required=True)
+
+    # host command (was --mode server)
+    host_parser = subparsers.add_parser('host', help='Run as proxy server (Linux only)')
+
+    # connect command (was --mode client)
+    connect_parser = subparsers.add_parser('connect', help='Connect to proxy server')
+    connect_parser.add_argument('--server-ip', required=True, help='IP address of the Diablo proxy server')
+
     args = parser.parse_args()
 
-    if args.mode == 'server':
+    if args.command == 'host':
         if platform.system() != 'Linux':
-            print("Diablo server mode only supports Linux.")
+            print("[-] Diablo proxy server (host mode) only works on Linux.")
             return
         tun = setup_tun_interface("10.8.0.1", "255.255.255.0")
         conn = start_tls_server(tun)
         start_forwarding(tun, conn)
 
-    elif args.mode == 'client':
+    elif args.command == 'connect':
         tun = setup_tun_interface("10.8.0.2", "255.255.255.0")
         conn = start_tls_client(args.server_ip)
         start_forwarding(tun, conn)
