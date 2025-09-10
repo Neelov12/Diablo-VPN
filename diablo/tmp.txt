@@ -1,0 +1,7 @@
+with open("./logo", "r") as infile:
+    raw_logo = infile.read()
+
+# Escape backslashes so they’re interpreted correctly in Python code
+escaped_logo = raw_logo.encode('unicode_escape').decode('utf-8')
+
+

@@ -1,6 +1,8 @@
 import sys 
 from datetime import datetime
 import textwrap
+import time
+import threading
 from .logo import logo_ansi
 
 class Terminal: 
@@ -11,7 +13,7 @@ class Terminal:
         "green": (0, 255, 0),
         "blue": (0, 0, 255),
         "light blue": (26, 247, 253),
-        "light yellow": (255, 238, 140),
+        "light yellow": (255, 213, 0),
         "diablo red": (255, 25, 7),
         "star": (255, 213, 0)
     }
@@ -23,6 +25,9 @@ class Terminal:
         (Github: github.com/Neelov12/Diablo).                                                                                                   
     ''')
 
+    _animation_thread = None
+    _stop_animation = threading.Event()
+
     @staticmethod
     def _findansi(msg, rgb):
         r, g, b = rgb
@@ -32,13 +37,19 @@ class Terminal:
         return ansi
     
     @staticmethod 
-    def return_ansi(msg, color=None, rgb=None):
+    def get_ansi(msg, color=None, rgb=None):
         if not color and not rgb:
             return Terminal._findansi(msg, Terminal.preset["white"])
         if color: 
             return Terminal._findansi(msg, Terminal.preset[color])
         elif rgb: 
             return Terminal._findansi(msg, rgb)   
+
+    @staticmethod
+    def print_intro():
+        msg = f"\n{Terminal.barrier}{Terminal.greeting}{Terminal.barrier}\n"
+        print(logo_ansi)
+        #print(msg)
         
     @staticmethod
     def write(msg, color=None, rgb=None):
@@ -62,19 +73,75 @@ class Terminal:
 
     @staticmethod
     def error(msg):
-        line = f"[+] {msg}"
+        line = f"[-] Error: {msg}"
         print(Terminal._findansi(line, Terminal.preset["red"]))
 
     @staticmethod
     def success(msg):
-        line = f"[+] Success: {msg}"
+        line = f"[Success] {msg}"
         print(Terminal._findansi(line, Terminal.preset["green"]))
 
     @staticmethod
-    def print_intro():
-        msg = f"\n{Terminal.barrier}{Terminal.greeting}{Terminal.barrier}\n"
-        print(logo_ansi)
-        #print(msg)
+    def animate(states, iter=6, final=None, pause=0.25):
+        """ Single threaded animation"""
+        for _ in range(iter):  # cycles through animation 3 times
+            for state in states:
+                sys.stdout.write(f"\r{state}")
+                sys.stdout.flush()
+                time.sleep(pause)
+
+        if final: 
+            sys.stdout.write(f"\r{final}\n")
+            sys.stdout.flush()
+
+    @staticmethod
+    def _animate_loop(states, pause):
+        """ Handler for multithreaded animation"""
+        while not Terminal._stop_animation.is_set():
+            for state in states:
+                if Terminal._stop_animation.is_set():
+                    break
+                sys.stdout.write(f"\r{state}")
+                sys.stdout.flush()
+                time.sleep(pause)
+
+    @staticmethod
+    def start_animation(states, pause=0.25):
+        """ Start animation thread """
+        Terminal._stop_animation.clear()
+        Terminal._animation_thread = threading.Thread(
+            target=Terminal._animate_loop, args=(states, pause)
+        )
+        Terminal._animation_thread.daemon = True
+        Terminal._animation_thread.start()
+
+    @staticmethod
+    def stop_animation(final=None):
+        """ End animation thread """
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+        if final:
+            sys.stdout.write(f"\r{final}\n")
+            sys.stdout.flush()
+
+    @staticmethod
+    def connecting_animation():
+        states = ["[+] Connecting", "[ ] Connecting"]
+        for _ in range(6):  # cycles through animation 3 times
+            for state in states:
+                sys.stdout.write(f"\r{state}")
+                sys.stdout.flush()
+                time.sleep(0.25)
+
+        # Once connected
+        connected = Terminal._findansi("[Success] Connected", Terminal.preset["green"])
+        sys.stdout.write(f"\r{connected}\n")
+        sys.stdout.flush()
+
+
+
+
         
 
 

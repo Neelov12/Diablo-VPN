@@ -1,0 +1,2 @@
+[console_scripts]
+diablo = diablo.__main__:main

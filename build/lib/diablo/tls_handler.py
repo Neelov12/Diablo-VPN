@@ -1,8 +1,5 @@
 import socket
 import ssl
-import os
-from .terminal import Terminal 
-from .certgen import generate_self_signed_cert
 
 # Hardcoded port for now
 TLS_PORT = 4433
@@ -12,12 +9,7 @@ CERT_PATH = "certs/cert.pem"
 KEY_PATH = "certs/key.pem"
 
 def start_tls_server(tun_fd):
-    Terminal.log(f"Starting Diablo TLS server on port {TLS_PORT}")
-
-    # If first time hosting 
-    if not os.path.exists(CERT_PATH) or not os.path.exists(KEY_PATH):
-        Terminal.warn("Public certificate is missing, or this is your first time hosting. Generating new keys.")
-        generate_self_signed_cert()
+    print("[*] Starting Diablo TLS server on port", TLS_PORT)
 
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_cert_chain(certfile=CERT_PATH, keyfile=KEY_PATH)
@@ -28,7 +20,7 @@ def start_tls_server(tun_fd):
     bindsocket.listen(5)
 
     newsocket, addr = bindsocket.accept()
-    Terminal.log(f"Client connected from {addr[0]}:{addr[1]}")
+    print(f"[+] Client connected from {addr[0]}:{addr[1]}")
 
     tls_socket = context.wrap_socket(newsocket, server_side=True)
     print("[+] TLS handshake successful")

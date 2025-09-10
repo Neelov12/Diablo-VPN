@@ -4,7 +4,6 @@ import subprocess
 import fcntl
 import struct
 import sys
-from .terminal import Terminal 
 
 def setup_tun_interface(ip_addr, netmask, name=None):
     system = platform.system()
@@ -31,7 +30,7 @@ def setup_tun_linux(ip_addr, netmask, tun_name):
     subprocess.run(["ip", "addr", "add", f"{ip_addr}/24", "dev", tun_name], check=True)
     subprocess.run(["ip", "link", "set", tun_name, "up"], check=True)
 
-    Terminal.log(f"Linux TUN device {tun_name} set up at {ip_addr}")
+    print(f"[+] Linux TUN device {tun_name} set up at {ip_addr}")
     return tun_fd
 
 def setup_tun_macos(ip_addr, netmask):
@@ -52,7 +51,7 @@ def setup_tun_macos(ip_addr, netmask):
         "ifconfig", name, ip_addr, ip_addr, "netmask", netmask, "up"
     ], check=True)
 
-    Terminal.log(f"[+] macOS TUN device {name} set up at {ip_addr}")
+    print(f"[+] macOS TUN device {name} set up at {ip_addr}")
     return fd
 
 # TODO: Use Wintun.dll, or OpenVPN TAP, or Npcap

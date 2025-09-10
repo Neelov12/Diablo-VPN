@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: diablo
+Version: 0.1
+Requires-Dist: pyOpenSSL
+Requires-Dist: pyroute2; platform_system == "Linux"
+Dynamic: requires-dist
