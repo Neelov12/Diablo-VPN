@@ -1,6 +1,6 @@
 
 # Change this to any RGB you want:
-rgb = (40, 255, 0)  # (R, G, B)
+rgb = (255, 40, 40)  # (R, G, B)
 
 # Input/output files:
 in_path = "logo.txt"
@@ -10,7 +10,7 @@ out_path = "./logo"
 r, g, b = rgb
 ANSI_FG = f"\x1b[38;2;{r};{g};{b}m"  # 24-bit (truecolor) foreground
 ANSI_RESET = "\x1b[0m"
-print(f"{ANSI_FG}c{ANSI_RESET}")
+
 def main():
     colored = "" 
     # 1) Read plain text
