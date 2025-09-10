@@ -12,6 +12,7 @@ r, g, b = rgb
 ANSI_FG = f"\x1b[38;2;{r};{g};{b}m"  # 24-bit (truecolor) foreground
 r, g, b = yellow
 ANSI_STAR = f"\x1b[38;2;{r};{g};{b}m"  # 24-bit (truecolor) foreground
+ANSI_WHITE = f"\x1b[38;2;255;255;255m"
 ANSI_RESET = "\x1b[0m"
 
 def main():
@@ -22,6 +23,7 @@ def main():
         lines = plain.splitlines() 
         starlen = 0
         s = 0
+        iswhite = False 
         for l in lines: 
             # Manage command 
             if l.startswith("!"):
@@ -32,18 +34,27 @@ def main():
                     s = 0
                     continue
                 elif l.startswith("!end"):
-                    break
+                    command = l.split()
+                    if len(command) == 1:
+                        break
+                    else:
+                        if command[1] == "white":
+                            iswhite = False 
+                elif l.startswith("!white"):
+                    iswhite = True
+                    continue
             
             CURR_ANSI = ANSI_FG
             # If current line is a star 
             if starlen != 0:
-
                 if s >= starlen:
                     starlen = 0 
                     s = 0
                 else:
                     CURR_ANSI = ANSI_STAR
                     s+=1 
+            if iswhite: 
+                CURR_ANSI = ANSI_WHITE
                 
             for c in l: 
                 if starlen != 0 and s == starlen:
