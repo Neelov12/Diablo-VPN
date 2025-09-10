@@ -55,5 +55,3 @@ def setup_tun_macos(ip_addr, netmask):
     return fd
 
 # TODO: Use Wintun.dll, or OpenVPN TAP, or Npcap
-
-

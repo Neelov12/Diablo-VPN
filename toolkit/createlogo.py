@@ -5,7 +5,7 @@ yellow = (255, 213, 0)
 
 # Input/output files:
 in_path = "logo.txt"
-out_path = "../diablo/logo"
+out_path = "./logo"
 
 # Build ANSI sequences
 r, g, b = rgb
@@ -24,6 +24,7 @@ def main():
         starlen = 0
         s = 0
         iswhite = False 
+        isyellow = False
         for l in lines: 
             # Manage command 
             if l.startswith("!"):
@@ -40,8 +41,14 @@ def main():
                     else:
                         if command[1] == "white":
                             iswhite = False 
+                        if command[1] == "yellow":
+                            isyellow = False 
+                        continue
                 elif l.startswith("!white"):
                     iswhite = True
+                    continue
+                elif l.startswith("!yellow"):
+                    isyellow = True
                     continue
             
             CURR_ANSI = ANSI_FG
@@ -55,6 +62,8 @@ def main():
                     s+=1 
             if iswhite: 
                 CURR_ANSI = ANSI_WHITE
+            elif isyellow:
+                CURR_ANSI = ANSI_STAR
                 
             for c in l: 
                 if starlen != 0 and s == starlen:
@@ -71,7 +80,13 @@ def main():
 
     # Print the contents (shows colored text in a compatible terminal)
     with open(out_path, "r") as f:
-        print(f.read(), end="")
+        raw_logo = f.read()
+        print(raw_logo, end="")
+
+    escaped_logo = raw_logo.encode('unicode_escape').decode('utf-8')
+    
+    with open("../diablo/logo.py", "w") as logo:
+        logo.write(f'logo_ansi = "{escaped_logo}"\n')
 
 if __name__ == "__main__":
     main()
