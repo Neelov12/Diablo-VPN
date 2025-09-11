@@ -3,7 +3,7 @@ from datetime import datetime
 import textwrap
 import time
 import threading
-from .logo import logo_ansi
+from importlib.resources import files
 
 class Terminal: 
 
@@ -18,12 +18,8 @@ class Terminal:
         "star": (255, 213, 0)
     }
 
-    barrier = "________________________________________________________ _________________ __________ _______ ___ __ _"
-    greeting = textwrap.dedent('''
-        An open-source LAN protection & VPN service.                                                                                            
-        Spot any bugs or vulnerabilities, or want to become a collaborator? Email neelov12@gmail.com.                                           
-        (Github: github.com/Neelov12/Diablo).                                                                                                   
-    ''')
+    line = "______________________________________ _____________ _________ _______ ___ __ _"
+    banner_path = files("diablo.assets").joinpath("banner.txt")
 
     _animation_thread = None
     _stop_animation = threading.Event()
@@ -47,9 +43,9 @@ class Terminal:
 
     @staticmethod
     def print_intro():
-        msg = f"\n{Terminal.barrier}{Terminal.greeting}{Terminal.barrier}\n"
-        print(logo_ansi)
-        #print(msg)
+        with open(Terminal.banner_path, "r") as f:
+            intro = f.read()
+        print(intro)
         
     @staticmethod
     def write(msg, color=None, rgb=None):
@@ -80,6 +76,11 @@ class Terminal:
     def success(msg):
         line = f"[Success] {msg}"
         print(Terminal._findansi(line, Terminal.preset["green"]))
+    
+    @staticmethod 
+    def sectionheader(title, color="star"):
+        title_ansi = Terminal._findansi(title, Terminal.preset[color])
+        print(f"{title_ansi}\n{Terminal.line}")
 
     @staticmethod
     def animate(states, iter=6, final=None, pause=0.25):

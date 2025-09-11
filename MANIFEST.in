@@ -1,0 +1,8 @@
+# MANIFEST.in
+
+include diablo/*.txt
+include diablo/*.cfg
+
+recursive-include diablo/certs *
+recursive-include diablo/assets *
+include README.md

@@ -6,6 +6,7 @@ yellow = (255, 213, 0)
 # Input/output files:
 in_path = "logo.txt"
 out_path = "./logo"
+intro_path = "../diablo/assets/banner.txt"
 
 # Build ANSI sequences
 r, g, b = rgb
@@ -77,16 +78,21 @@ def main():
 
     with open(out_path, "w") as f:
         f.write(colored)
+    
+    with open(intro_path, "w") as intro: 
+        intro.write(colored)
 
     # Print the contents (shows colored text in a compatible terminal)
     with open(out_path, "r") as f:
         raw_logo = f.read()
         print(raw_logo, end="")
 
+"""
     escaped_logo = raw_logo.encode('unicode_escape').decode('utf-8')
     
     with open("../diablo/logo.py", "w") as logo:
         logo.write(f'logo_ansi = "{escaped_logo}"\n')
+"""
 
 if __name__ == "__main__":
     main()

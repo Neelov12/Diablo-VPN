@@ -1,62 +1,41 @@
 import argparse
-import platform
-from .tun import setup_tun_interface
-from .tls_handler import start_tls_server, start_tls_client
-from .forwarder import start_forwarding
-import time
-import random
 
-import argparse
-import platform
-from .tun import setup_tun_interface
-from .tls_handler import start_tls_server, start_tls_client
-from .forwarder import start_forwarding
 from .terminal import Terminal 
+from .daemon import daemonize
 
-def main():
+from .server import start_server
+from .client import start_client
+
+def arguments():
+    """ Create commands (as subparsers) and arguments """
     parser = argparse.ArgumentParser(
         description="Diablo: LAN Proxy and Privacy"
     )
     
     subparsers = parser.add_subparsers(dest='command', required=True)
-    
+    """ host """
     host_parser = subparsers.add_parser('host', help='Run as proxy server (Linux only)')
+    host_parser.add_argument('-hang', action='store_true', help='Keep terminal open')
+    """ connect """
     connect_parser = subparsers.add_parser('connect', help='Connect to proxy server')
     connect_parser.add_argument('server_ip', nargs='?', default='127.0.0.1', help='IP address of the Diablo proxy server')
+    connect_parser.add_argument('-hang', action='store_true', help='Keep terminal open')
+    """ status """
     status_parser = subparsers.add_parser('status', help='Check status of connection or proxy')
+    """ stop """
+    subparsers.add_parser("stop", help="Stop a running proxy server")
+    """ restart """
+    subparsers.add_parser("restart", help="Restart last session")
+    """ disconnect """
+    subparsers.add_parser("disconnect", help="Disconnect from current connection")
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def main():
+    args = arguments()
 
     if args.command == 'host':
-        Terminal.print_intro()
-        Terminal.start_animation([Terminal.get_ansi("[-] Starting Server", "light blue"),
-                                  Terminal.get_ansi("[+] Starting Server", "light blue") ])
-
-        time.sleep(2)
-        Terminal.stop_animation()
-
-        Terminal.start_animation([Terminal.get_ansi("[-] Sucking dick", "light blue"),
-                                  Terminal.get_ansi("[+] Sucking dick", "light blue") ])
-        time.sleep(4)
-        ran = random.randint(0,3)
-        if ran == 1:
-            Terminal.stop_animation(final=Terminal.get_ansi("[-] Stopped Server", "red"))
-        else:
-            Terminal.stop_animation(final=Terminal.get_ansi("[+] Proxy started  ", "green"))
-        
-        if platform.system() != 'Linux':
-            Terminal.error("For now, Diablo proxy server (host mode) only works on Linux.")
-            return
-        tun = setup_tun_interface("10.8.0.1", "255.255.255.0")
-        conn = start_tls_server(tun)
-        start_forwarding(tun, conn)
-        
+        start_server()
         
     elif args.command == 'connect':
-        Terminal.print_intro()
-        Terminal.connecting_animation()
-        """
-        tun = setup_tun_interface("10.8.0.2", "255.255.255.0")
-        conn = start_tls_client(args.server_ip)
-        start_forwarding(tun, conn)
-        """
+        start_client()

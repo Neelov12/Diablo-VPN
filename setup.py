@@ -5,6 +5,9 @@ setup(
     version='0.1',
     packages=find_packages(),
     include_package_data=True,
+    package_data={
+        "diablo": ["assets/*"],
+    },
     entry_points={
         'console_scripts': [
             'diablo = diablo.__main__:main'

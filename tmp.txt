@@ -1,27 +1,48 @@
-    @staticmethod
-    def _animate_loop(states, pause):
-        while not Terminal._stop_animation.is_set():
-            for state in states:
-                if Terminal._stop_animation.is_set():
-                    break
-                sys.stdout.write(f"\r{state}")
-                sys.stdout.flush()
-                time.sleep(pause)
+import os
+import json
+from pathlib import Path
 
-    @staticmethod
-    def start_animation(states, pause=0.25):
-        Terminal._stop_animation.clear()
-        Terminal._animation_thread = threading.Thread(
-            target=Terminal._animate_loop, args=(states, pause)
-        )
-        Terminal._animation_thread.daemon = True
-        Terminal._animation_thread.start()
+STATUS_FILE = Path.home() / ".local/share/diablo/status.json"
 
-    @staticmethod
-    def stop_animation(final=None):
-        Terminal._stop_animation.set()
-        if Terminal._animation_thread is not None:
-            Terminal._animation_thread.join()
-        if final:
-            sys.stdout.write(f"\r{final}\n")
-            sys.stdout.flush()
+def load_status():
+    """Load session status from disk."""
+    if not STATUS_FILE.exists():
+        return {}
+    try:
+        with open(STATUS_FILE, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+def save_status(data):
+    """Save current session status."""
+    os.makedirs(STATUS_FILE.parent, exist_ok=True)
+    with open(STATUS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def clear_status():
+    """Clear saved status file."""
+    if STATUS_FILE.exists():
+        STATUS_FILE.unlink()
+
+def is_session_active(expected_mode=None):
+    """
+    Returns:
+        (bool, dict): (True, status) if session is active, otherwise (False, None)
+    """
+    status = load_status()
+    if not status:
+        return False, None
+
+    pid = status.get("pid")
+    mode = status.get("mode")
+
+    # Check if PID is still alive
+    if pid and os.path.exists(f"/proc/{pid}"):
+        if expected_mode is None or mode == expected_mode:
+            return True, status
+    else:
+        # Clean up zombie status file
+        clear_status()
+    return False, None
+
