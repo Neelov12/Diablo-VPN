@@ -1,8 +1,27 @@
-{
-  "require_password": false,
-  "default_password": "",
-  "log_level": "info",
-  "auto_accept_clients": true,
-  "max_clients": 10,
-  "bind_interface": "tun0"
-}
+import json
+import os
+import platform
+from textwrap import dedent
+from pathlib import Path
+from importlib.resources import files
+from .terminal import Terminal 
+
+class Settings: 
+    # Windows for future development
+    if platform.system() == "Windows":
+        CONFIG_DIR = Path(os.getenv("APPDATA", "~/.config")).expanduser() / "diablo"
+    else:
+        CONFIG_DIR = Path.home() / ".config" / "diablo"
+
+    CONFIG_PATH = CONFIG_DIR / "config.json"
+    DEFAULT_CONFIG_PATH = files("diablo.defaults").joinpath("config.json")
+
+    @staticmethod
+    def _ensure_config_exists():
+        if not Settings.CONFIG_PATH.exists():
+            Settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
+                f_target.write(f_default.read())
+
+    _ensure_config_exists()  # Ensure config is initialized
+

@@ -3,6 +3,7 @@ import argparse
 from .terminal import Terminal 
 from .daemon import daemonize
 
+from .settings import Settings
 from .server import Server
 from .client import start_client
 
@@ -28,6 +29,9 @@ def arguments():
     subparsers.add_parser("restart", help='Restart last session')
     """ disconnect """
     subparsers.add_parser("disconnect", help='Disconnect from current connection')
+    """ settings """
+    subparsers.add_parser("settings", help='Change configuration settings')
+
 
     return parser.parse_args()
 
@@ -43,3 +47,6 @@ def main():
     elif args.command == 'restart':
         from .restart import restart
         restart()
+    elif args.command == 'settings':
+        Terminal.print_intro()
+        Settings.settings_menu()

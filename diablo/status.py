@@ -44,4 +44,5 @@ def is_session_active(expected_mode=None):
     else:
         # Clean up zombie status file
         clear_status()
+        
     return False, None

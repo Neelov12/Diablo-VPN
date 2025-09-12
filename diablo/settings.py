@@ -23,8 +23,6 @@ class Settings:
             with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
                 f_target.write(f_default.read())
 
-    _ensure_config_exists()  # Ensure config is initialized
-
     @staticmethod
     def load_config():
         with open(Settings.CONFIG_PATH, "r") as f:
@@ -59,5 +57,43 @@ class Settings:
 
     @staticmethod
     def settings_menu():
-        return
+        """ Launches terminal menu for user to change settings """
+
+        Settings._ensure_config_exists()
+        # None yes / no setting
+        manual_options = {
+            "log_level": ["debug", "info", "warning", "error"],
+            "max_clients": [str(i) for i in range(1, 12)],
+            "bind_interface": ["tun0"]
+        }
+        # Infers yes / no settings based on if it's a bool 
+        with open(Settings.DEFAULT_CONFIG_PATH) as f:
+            default_config = json.load(f)
+
+        options_map = {}
+        for key, val in default_config.items():
+            if key in manual_options:
+                options_map[key] = manual_options[key]
+            elif isinstance(val, bool):
+                options_map[key] = ["yes", "no"]
+            else:
+                # Catch anything else that isn't explicitly handled
+                options_map[key] = [str(val)]
+
+        current_config = Settings.load_config()
+        current = {}
+        for key, val in current_config.items():
+            if isinstance(val, bool):
+                if val == True: 
+                    current[key] = "yes"
+                else: 
+                    current[key] = "no"
+            else:
+                # Catch anything else that isn't explicitly handled
+                current[key] = str(val)
+        
+        Terminal.launch_menu("Settings", options_map, current)
+
+        
+
 
