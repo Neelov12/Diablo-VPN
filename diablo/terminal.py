@@ -19,11 +19,12 @@ class Terminal:
     }
 
     line = "______________________________________ _____________ _________ _______ ___ __ _"
-    banner_path = files("diablo.assets").joinpath("banner.txt")
+    BANNER_PATH = files("diablo.assets").joinpath("banner.txt")
 
     _animation_thread = None
     _stop_animation = threading.Event()
 
+    """ Colored text helpers """
     @staticmethod
     def _findansi(msg, rgb):
         r, g, b = rgb
@@ -41,9 +42,10 @@ class Terminal:
         elif rgb: 
             return Terminal._findansi(msg, rgb)   
 
+    """ Standard Output Management & Helpers """    
     @staticmethod
     def print_intro():
-        with open(Terminal.banner_path, "r") as f:
+        with open(Terminal.BANNER_PATH, "r") as f:
             intro = f.read()
         print(intro)
         
@@ -76,6 +78,12 @@ class Terminal:
     def success(msg):
         line = f"[Success] {msg}"
         print(Terminal._findansi(line, Terminal.preset["green"]))
+
+    @staticmethod
+    def quick_message(msg):
+        name = Terminal._findansi("Diablo: ", Terminal.preset["diablo red"])
+        message = Terminal._findansi(msg, Terminal.preset["white"])
+        print(f"{name}{message}")
     
     @staticmethod 
     def sectionheader(title, color="star"):
@@ -128,6 +136,7 @@ class Terminal:
 
     @staticmethod
     def connecting_animation():
+        """ Test """
         states = ["[+] Connecting", "[ ] Connecting"]
         for _ in range(6):  # cycles through animation 3 times
             for state in states:
@@ -139,6 +148,50 @@ class Terminal:
         connected = Terminal._findansi("[Success] Connected", Terminal.preset["green"])
         sys.stdout.write(f"\r{connected}\n")
         sys.stdout.flush()
+    
+    """ Standard Input Managers & Helpers """
+    @staticmethod
+    def prompt_response(name=None, options=[], yesno=False, yesnoenter=False, mercy=True):
+        """ Prompts a response from user, option to determine if reponse is valid, 
+            can be used for custom command prompt"""
+        prompt = ">> "
+        valid = True
+        yes = False 
+        """ Ideally, don't set name and options to non-default together, works but weird syntax """
+        if name: 
+            prompt = f"{name}@diablo {prompt}"
+        if options: 
+            prompt = f"{options} {prompt}" 
+        if yesno or yesnoenter: 
+            if options: 
+                Terminal.error("Don't call yesno and options together, just call yesno, prompt_response handles options for you")
+                return
+            options = ["yes", "no", "n", "y"]
+            prompt = "(yes/no) >> "
+            if yesnoenter: 
+                """ yesnoenter takes precedence if yesno called as well """
+                options.append("")
+                prompt = "(y/n) or press Enter >> "
+
+        response = input(prompt).strip()
+        if options: 
+            if not response in options: 
+                valid = False       
+            elif yesno or yesnoenter:
+                yes_options = options
+                yes_options.remove("n")
+                yes_options.remove("no")
+                if response in yes_options:
+                    yes = True
+                
+        if not valid: 
+            Terminal.warn(f"Invalid input. Your options are {options}")
+            if mercy: 
+                return Terminal.prompt_response(name, options)
+        
+        return response, yes
+        
+
 
 
 

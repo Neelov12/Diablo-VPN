@@ -16,7 +16,7 @@ def start_tls_server(tun_fd):
 
     # If first time hosting 
     if not os.path.exists(CERT_PATH) or not os.path.exists(KEY_PATH):
-        Terminal.warn("Public certificate is missing, or this is your first time hosting. Generating new keys.")
+        Terminal.warn("Public certificate is missing, or this is your first time hosting. Generating new certificate.")
         generate_self_signed_cert()
 
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)

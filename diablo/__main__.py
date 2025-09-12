@@ -3,7 +3,7 @@ import argparse
 from .terminal import Terminal 
 from .daemon import daemonize
 
-from .server import start_server
+from .server import Server
 from .client import start_client
 
 def arguments():
@@ -23,11 +23,11 @@ def arguments():
     """ status """
     status_parser = subparsers.add_parser('status', help='Check status of connection or proxy')
     """ stop """
-    subparsers.add_parser("stop", help="Stop a running proxy server")
+    subparsers.add_parser("stop", help='Stop a running proxy server')
     """ restart """
-    subparsers.add_parser("restart", help="Restart last session")
+    subparsers.add_parser("restart", help='Restart last session')
     """ disconnect """
-    subparsers.add_parser("disconnect", help="Disconnect from current connection")
+    subparsers.add_parser("disconnect", help='Disconnect from current connection')
 
     return parser.parse_args()
 
@@ -35,7 +35,11 @@ def main():
     args = arguments()
 
     if args.command == 'host':
-        start_server()
-        
+        Server.start_server()
     elif args.command == 'connect':
         start_client()
+    elif args.command == 'stop':
+        Server.stop_server()
+    elif args.command == 'restart':
+        from .restart import restart
+        restart()

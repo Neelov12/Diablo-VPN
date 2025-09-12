@@ -1,0 +1,47 @@
+import os
+import json
+from pathlib import Path
+
+STATUS_FILE = Path.home() / ".local/share/diablo/status.json"
+
+def load_status():
+    """Load session status from disk."""
+    if not STATUS_FILE.exists():
+        return {}
+    try:
+        with open(STATUS_FILE, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+def save_status(data):
+    """Save current session status."""
+    os.makedirs(STATUS_FILE.parent, exist_ok=True)
+    with open(STATUS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def clear_status():
+    """Clear saved status file."""
+    if STATUS_FILE.exists():
+        STATUS_FILE.unlink()
+
+def is_session_active(expected_mode=None):
+    """
+    Returns:
+        (bool, dict): (True, status) if session is active, otherwise (False, None)
+    """
+    status = load_status()
+    if not status:
+        return False, None
+
+    pid = status.get("pid")
+    mode = status.get("mode")
+
+    # Check if PID is still alive
+    if pid and os.path.exists(f"/proc/{pid}"):
+        if expected_mode is None or mode == expected_mode:
+            return True, status
+    else:
+        # Clean up zombie status file
+        clear_status()
+    return False, None

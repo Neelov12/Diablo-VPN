@@ -5,4 +5,5 @@ include diablo/*.cfg
 
 recursive-include diablo/certs *
 recursive-include diablo/assets *
+recursive-include diablo/defaults *
 include README.md
