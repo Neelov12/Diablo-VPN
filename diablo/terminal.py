@@ -7,6 +7,7 @@ import tty
 import select
 import shutil 
 from textwrap import dedent
+import pprint
 from importlib.resources import files
 
 class Terminal: 
@@ -267,6 +268,7 @@ class Terminal:
         return response, yes
     
     """ Terminal UI - Menu Support """
+
     @staticmethod
     def read_control_key(timeout=0.1):
         """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
@@ -302,37 +304,132 @@ class Terminal:
 
     @staticmethod
     def _get_styled(key, msg, format, default=None):
+        """ Obtain correct ansi of line in menu based on format specification, store in format as cache after first call """
+
+        style_cache = f"_.TMP_STY_{key}"
+        if style_cache in format: 
+            return format[style_cache]
+        
         key = str(key)
         groups = format["_STYLES"]
         style = None
+
         if key in groups:
             style = groups[key]
         elif default:
             if default in groups:
                 style = groups[default]
 
+        styled_line = msg
         if style: 
             if isinstance(style, dict):
                 if "color" in style:
                     color = style["color"]
-                    return Terminal.get_color(msg, color)
+                    styled_line = Terminal.get_color(msg, color)
                 elif "color-bold" in style:
                     color = style["color-bold"]
-                    return Terminal.get_color_bold(msg, color)
+                    styled_line = Terminal.get_color_bold(msg, color)
             else:
                 style = str(style)
                 if style == "bold":
-                    return Terminal.get_bold(msg)
+                    styled_line = Terminal.get_bold(msg)
                 elif style == "dim":
-                    return Terminal.get_dim(msg)   
-            
-        return msg  
-    
+                    styled_line = Terminal.get_dim(msg)   
+
+        format_cache = {}
+        format_cache[style_cache] = styled_line
+        format.update(format_cache)
+        return styled_line
+
     @staticmethod
     def _draw_bottom(msg):
         cols, rows = shutil.get_terminal_size()
         start_col = max(1, cols - len(msg) + 1)
         sys.stdout.write(f"\x1b[{rows};{start_col}H{msg}\x1b[0m")
+    
+    @staticmethod
+    def _draw_instruction(instr_menu_state, format):
+        """ Draws formatted instructions to stdout, uses dict 'format' as cache to avoid performance constraint"""
+
+        instr_cache = f"_.TMP_INS{instr_menu_state}"
+        instr_size_cache = f"_.TMP_INS{instr_menu_state}_SIZE"
+        if instr_cache in format and instr_size_cache in format: 
+            inst = format[instr_cache]
+            raw_size = int(format[instr_size_cache])
+            cols, rows = shutil.get_terminal_size()
+            start_col = max(1, cols - raw_size + 1)
+            sys.stdout.write(f"\x1b[{rows};{start_col}H{inst}\x1b[0m")
+            return
+        
+        instr_menu = format[instr_menu_state]
+
+        if "_ORDER" in instr_menu:
+            order = instr_menu["_ORDER"]
+            instructions = []
+            instr_raw = []
+            for instr_name in order: 
+                instr_name = str(instr_name)
+
+                if instr_name in instr_menu: 
+                    instr_unformatted = instr_menu[instr_name]
+                elif instr_name in format["_DEFAULTS"]:
+                    defaults = format["_DEFAULTS"]
+                    instr_unformatted = defaults[instr_name]
+                else:
+                    sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
+                    Terminal.dev_error(dedent(f"""Invalid formatting, '_draw_instructions' was expecting {instr_name} in instr_menu {instr_menu}, or 
+                                        {instr_name} in {defaults}"""))
+                    exit()
+
+                if isinstance(instr_unformatted, dict):
+                    if not "_" in instr_unformatted:
+                        sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
+                        Terminal.dev_error(dedent(f"""Invalid formatting, '_draw_instructions' was expecting \'_\' in {instr_menu}/{instr_unformatted}.
+                                            If adding styling to instruction, make sure to reference the text of the instruction with \'_\'"""))
+                        exit()   
+                    instr_text = instr_unformatted["_"] 
+                    instr_raw.append(instr_text)              
+                    if "_STYLE" in instr_unformatted:
+                        style = instr_unformatted["_STYLE"]
+                        if isinstance(style, dict):
+                            if "color" in style:
+                                color = style["color"]
+                                instructions.append(Terminal.get_color(instr_text, color))
+                            elif "color-bold" in style:
+                                color = style["color-bold"]
+                                instructions.append(Terminal.get_color(instr_text, color))
+                            else: 
+                                instructions.append(instr_text)
+                        else: 
+                            style = str(style)
+                            if style == "bold":
+                                instructions.append(Terminal.get_bold(instr_text))
+                            elif style == "dim":
+                                instructions.append(Terminal.get_bold(instr_text)) 
+                            else: 
+                                instructions.append(instr_text)
+                    else: 
+                        instructions.append(instr_text)
+                else: 
+                    instr_formatted = str(instr_unformatted)
+                    instructions.append(instr_formatted)
+                    instr_raw.append(instr_formatted)
+
+            instr_statement = " | ".join(instructions)
+            instr_raw_stmt = " | ".join(instr_raw)
+            instr_raw_size = len(instr_raw_stmt)
+            format_cache = {}
+            format_cache[instr_cache] = instr_statement
+            format_cache[instr_size_cache] = instr_raw_size
+            format.update(format_cache)
+
+            cols, rows = shutil.get_terminal_size()
+            start_col = max(1, cols - instr_raw_size + 1)
+            sys.stdout.write(f"\x1b[{rows};{start_col}H{instr_statement}\x1b[0m")
+
+        else: 
+            return
+
 
     @staticmethod 
     def _draw_menu(hovering, selecting, exiting, hovering_suboption, options, current, format, buffer):
@@ -365,7 +462,8 @@ class Terminal:
         for line in lines: 
             sys.stdout.write(f"{line}\n")
 
-        Terminal._draw_bottom(f"{Terminal.get_color(format["_INSTRUCTION_ESCAPE"], "star")} | {format["_INSTRUCTION_HOME"]}")
+        #Terminal._draw_bottom(f"{Terminal.get_color(format["_INSTRUCTION_ESCAPE"], "star")} | {format["_INSTRUCTION_HOME"]}")
+        Terminal._draw_instruction("_INSTRUCTION_HOME", format)
         sys.stdout.flush()
 
 
@@ -382,7 +480,8 @@ class Terminal:
         current = {}
         options_size_1d = len(options)
         total_canv_size = options_size_1d
-        """ Default format, naming a setting same as default may lead to bugs """
+        """ 'format' dictionary which enables flexible use of 'launch_menu' by editing 'user_format', doubles as
+            reference memory & cache storage for 'draw_menu' """
         format = {
             "_.HEADER" : header,
             "_.ENTER_ALTERNATE_SCREEN" : "\x1b[?1049h",
@@ -392,11 +491,31 @@ class Terminal:
             "_.CLEAR_SCREEN" : "\x1b[2J",
             "_.MOVE_CURSOR_HOME" : "\x1b[H",
             "_.POSSIBLE_TYPES" : possible_types,
-            "_INSTRUCTION_ESCAPE" : "[Esc] Exit ",
-            "_INSTRUCTION_LEFT" : "[←] Go Back"
-            "_INSTRUCTION_RIGHT" : ""
-            "_INSTRUCTION_HOME" : "[←] Save | [Enter] Edit | [↑][↓] Change",
-            "_INSTRUCTION_SELECTED" : "[←] Go back | [Enter] Select",
+            "_DEFAULTS" : {
+                "_INSTRUCTION_LEFT" : {
+                    "_" : "[←] Exit",
+                    "_STYLE" : "bold"
+                },
+                "_INSTRUCTION_UP_DOWN" : "[↑][↓] Change",
+                "_INSTRUCTION_ESCAPE" : "[Esc] Exit",
+            },
+            "_INSTRUCTION_HOME" : {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_RIGHT", "_INSTRUCTION_UP_DOWN"],
+                "_INSTRUCTION_ENTER" : "[Enter]",
+                "_INSTRUCTION_RIGHT" : "[→] Select",
+            },
+            "_INSTRUCTION_SELECTING" : {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_UP_DOWN"],
+                "_INSTRUCTION_ENTER" : "[Enter] Select",
+            },
+            "_INSTRUCTION_CONFIRMING" : {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER"],
+                "_INSTRUCTION_ENTER" : "[Enter] Confirm",
+            },
+            "_INSTRUCTION_EXITING": {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "INSTRUCTION_RIGHT"],
+                "_INSTRUCTION_RIGHT" : "[→] Return"
+            },
             "_STYLES" : {
                 "_LEFT" : "bold"
             },
@@ -404,22 +523,27 @@ class Terminal:
             "_WARNINGS" : {},
             "_RULES" : {},
             "_PARENTS" : {}
-
-
         }
+        """ Validate correct use of user_format, 'launch_menu' follows a pretty exact structure """
         if user_format: 
             for key, _ in user_format.items(): 
                 key = str(key)
                 if key.startswith("_."):
                     Terminal.dev_error(dedent("""You are trying to modify a protected format value, demarked by '_.' at the start.
-                                                 Modifying this value could cause the program to crash or behave unpredictably. Modify
-                                                 at your own risk."""))
+                                                 Modifying this value could cause the program to crash or behave unpredictably. Values
+                                                 starting with '_' can be modified, and are declared as default format settings."""))
                     return
-                if not key.isupper():
+                if not key.isupper() or not key.startswith("_"):
                     Terminal.dev_error(dedent("""Invalid format value. All keys in format begin with '_' and are uppercase. However,
                                                  there are some values within the keys that are lowercased, and valid. Typically, 
                                                  these are user or config variables, or optional values that are not necessary for 
-                                                 the program to run. For example, 'min' and 'max'."""))
+                                                 the program to run. For example, '_min' and '_max'. '_' at start is a senstive, 
+                                                 & will be interpreted as a format var. Be careful not to name user created vars
+                                                 like settings as such."""))
+                    return
+                if key not in format: 
+                    Terminal.dev_error(dedent("""Unrecognized format value. All valid keys have been declared in launch_menu (terminal.py),
+                                                 and are free to be modified, unless protected (starts with '_.'"""))
                     return
             format.update(user_format)
 
@@ -454,6 +578,7 @@ class Terminal:
         hovering_suboption = 0
         changes_made = False
         key = None
+        """ Launch alternate terminal instead of normal """
         sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] + format["_.HIDE_CURSOR"])
         try:
             while True: 
@@ -509,6 +634,7 @@ class Terminal:
                         selected_option = None
         finally:
             sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
+            pprint.pprint(format)
 
 
 

@@ -7,7 +7,7 @@ from importlib.resources import files
 from .terminal import Terminal 
 
 class Settings: 
-    # Windows for future development
+    """ Windows for future development >:() """
     if platform.system() == "Windows":
         CONFIG_DIR = Path(os.getenv("APPDATA", "~/.config")).expanduser() / "diablo"
     else:
@@ -103,13 +103,13 @@ class Settings:
         """ Set selection types, non-specified default to 'dropdown' """
 
         formatting = {
-            "TYPES" : {
+            "_TYPES" : {
                 "max_clients" : "text-ip",
                 "default_server_ip" : "text-ip",
                 "filtered_ports" : "list-int",
                 "blocked_ports" : "list-int",
             },
-            "WARNINGS" : {
+            "_WARNINGS" : {
                 "required_password" : {
                     "no" : "Disabling this option leaves you unprotected to unknown connections."
                 },
@@ -126,18 +126,18 @@ class Settings:
                     "yes" : "Only use this option on a network you own or are authorized to audit."
                 },   
             },
-            "RULES" : {
+            "_RULES" : {
                 "filtered_ports" : {
-                    "min" : 0,
-                    "max" : 65535
+                    "_min" : 0,
+                    "_max" : 65535
                 },
                 "blocked_ports" : {
-                    "min" : 0,
-                    "max" : 65535
+                    "_min" : 0,
+                    "_max" : 65535
                 },
-                "default_server_ip" : "ip_address",
+                "default_server_ip" : "_ip_address",
             },
-            "PARENTS" : {
+            "_PARENTS" : {
                 "monitor_arp_requests": {
                     "no" : ["block_arp_requests", "manipulate_arp_response"],
                 },
