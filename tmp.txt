@@ -1,26 +1,9 @@
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-
-    try:
-        tty.setraw(fd)
-        rlist, _, _ = select.select([fd], [], [], timeout)
-        if rlist:
-            ch1 = sys.stdin.read(1)
-            if ch1 == '\x1b':  # ESC or arrow sequence
-                ch2 = sys.stdin.read(1)
-                if ch2 == '[':
-                    ch3 = sys.stdin.read(1)
-                    return {
-                        'A': 'UP',
-                        'B': 'DOWN',
-                        'C': 'RIGHT',
-                        'D': 'LEFT'
-                    }.get(ch3, 'ESC')
-                return 'ESC'
-            elif ch1 == '\r':
-                return 'ENTER'
-            else:
-                return ch1  # Return literal character
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return None
+ENTER_ALTERNATE_SCREEN = "\x1b[?1049h"
+EXIT_ALTERNATE_SCREEN  = "\x1b[?1049l"
+HIDE_CURSOR = "\x1b[?25l"
+SHOW_CURSOR = "\x1b[?25h"
+CLEAR_SCREEN = "\x1b[2J"
+MOVE_CURSOR_HOME = "\x1b[H"
+REVERSE = "\x1b[7m"
+BOLD = "\x1b[1m"
+RESET = "\x1b[0m"

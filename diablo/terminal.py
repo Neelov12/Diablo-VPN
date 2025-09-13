@@ -2,10 +2,11 @@ import sys
 from datetime import datetime
 import time
 import threading
-import curses
 import termios
 import tty
 import select
+import shutil 
+from textwrap import dedent
 from importlib.resources import files
 
 class Terminal: 
@@ -21,7 +22,11 @@ class Terminal:
         "star": (255, 213, 0)
     }
 
+    version = "Version Beta 0.1"
+    important_line = "______________________________________________ _________________ __________ _______ ___ __ _ "
     line = "___________________________ ____________ _______ ____ ___ __ _"
+    intro_slogan = dedent("""An Open-Source VPN & LAN Protection Service""")
+
     BANNER_PATH = files("diablo.assets").joinpath("banner.txt")
 
     _animation_thread = None
@@ -39,8 +44,8 @@ class Terminal:
     @staticmethod
     def _get_ansi_b(msg):
         ansi = "" 
-        for c in msg:
-            ansi+= f"\x1b[1m{c}\x1b[0m"
+        #for c in msg:
+        ansi+= f"\x1b[1m{msg}\x1b[0m"
         return ansi
     
     @staticmethod
@@ -49,22 +54,23 @@ class Terminal:
         ansi = "" 
         for c in msg:
             ansi+= f"\x1b[1m\x1b[38;2;{r};{g};{b}m{c}\x1b[0m"
-        return ansi    
-    
-    @staticmethod
-    def _get_ansi_r(msg):
-        ansi = ""
-        #for c in msg:
-        ansi = f"\x1b[7m{msg}\x1b[0m"
-        return ansi
+        return ansi      
 
     @staticmethod
     def get_bold(msg):
-        return Terminal._get_ansi_b(msg)
+        return f"\x1b[1m{msg}\x1b[0m"
     
     @staticmethod
     def get_reverse(msg):
-        return Terminal._get_ansi_r(msg)
+        return f"\x1b[7m{msg}\x1b[0m"
+    
+    @staticmethod
+    def get_reverse_bold(msg):
+        return f"\x1b[1m\x1b[7m{msg}\x1b[0m"
+    
+    @staticmethod
+    def get_dim(msg):
+        return f"\x1b[2m{msg}\x1b[0m"
     
     @staticmethod 
     def get_color(msg, color=None, rgb=None):
@@ -92,9 +98,18 @@ class Terminal:
     @staticmethod
     def print_intro():
         with open(Terminal.BANNER_PATH, "r") as f:
-            intro = f.read()
+            logo = f.read()
+        version = Terminal.get_color_bold(Terminal.version, "star")
+        line = Terminal.get_bold(Terminal.important_line)
+        slogan = Terminal.get_bold(Terminal.intro_slogan)
+        intro = f"{logo}{version}\n{line}\n{slogan}"
         print(intro)
-        
+    
+    @staticmethod
+    def get_logo():
+        with open(Terminal.BANNER_PATH, "r") as f:
+            return f.read()
+
     @staticmethod
     def write(msg, color=None, rgb=None):
         if not color and not rgb:
@@ -107,23 +122,33 @@ class Terminal:
 
     @staticmethod
     def log(msg):
-        line = f"[+] {msg}"
-        print(Terminal._findansi(line, Terminal.preset["light blue"]))
+        marker = Terminal._get_ansi_cb("[+]", Terminal.preset["light blue"])
+        msg_coded = Terminal._findansi(msg, Terminal.preset["light blue"])
+        print(f"{marker} {msg_coded}")
     
     @staticmethod
     def warn(msg):
-        line = f"[-] Warning: {msg}"
-        print(Terminal._findansi(line, Terminal.preset["light yellow"]))
+        msg_type = Terminal._get_ansi_cb("[-] Warning:", Terminal.preset["light yellow"])
+        msg_coded = Terminal._findansi(msg, Terminal.preset["light yellow"])
+        print(f"{msg_type} {msg_coded}")
 
     @staticmethod
     def error(msg):
-        line = f"[-] Error: {msg}"
-        print(Terminal._findansi(line, Terminal.preset["red"]))
+        msg_type = Terminal._get_ansi_cb("[-] Error:", Terminal.preset["red"])
+        msg_coded = Terminal._findansi(msg, Terminal.preset["red"])
+        print(f"{msg_type} {msg_coded}")
+    
+    @staticmethod
+    def dev_error(msg):
+        msg_type = Terminal._get_ansi_cb("[-] Developer Error:", Terminal.preset["red"])
+        msg_coded = Terminal._findansi(msg, Terminal.preset["white"])
+        print(f"{msg_type} {msg_coded}")
 
     @staticmethod
     def success(msg):
-        line = f"[Success] {msg}"
-        print(Terminal._findansi(line, Terminal.preset["green"]))
+        msg_type = Terminal._get_ansi_cb("[+] Success:", Terminal.preset["green"])
+        msg_coded = Terminal._findansi(msg, Terminal.preset["green"])
+        print(f"{msg_type} {msg_coded}")
 
     @staticmethod
     def quick_message(msg):
@@ -240,118 +265,8 @@ class Terminal:
                 return Terminal.prompt_response(name, options)
         
         return response, yes
-        
-    """ Support for Terminal psuedo-UI """
-    @staticmethod
-    def _launch_menu(title, options, original):
-        """ Launches terminal menu allowing user to navigate & select options using arrow keys and enter,
-            takes as required arguments header (menu title), dictionary of options, and original options """
-        options_map = options
-        current = original.copy()
-        code = 221
-        header_size = 4
-
-        def draw_menu(stdscr, selected, active_setting=None, active_choice=None, done=False):
-            """ Outs menu options to terminal """
-            stdscr.clear()
-            stdscr.addstr(0, 1, "Diablo ", curses.A_BOLD | curses.color_pair(code))
-            stdscr.addstr(title, curses.A_BOLD)      
-            stdscr.addstr(1, 1, Terminal.line, curses.A_BOLD)      
-            for idx, key in enumerate(options_map):
-                value = current[key]
-                line = f"{key.replace('_', ' ').capitalize():<25} : {value}"
-
-                if idx == selected:
-                    stdscr.attron(curses.A_REVERSE)
-                    stdscr.addstr(idx + header_size, 2, line)
-                    stdscr.attroff(curses.A_REVERSE)
-                    
-                    if active_setting == key:
-                        choices = options_map[key]
-                        for i, choice in enumerate(choices):
-                            style = curses.A_BOLD | curses.color_pair(code) if i == active_choice else curses.A_DIM
-                            stdscr.addstr(idx + header_size + 1 + i, 6, f"> {choice}", style)
-
-                        stdscr.addstr(idx + header_size + 2 + len(choices), 6, f"{" "*15}[←] Go Back")
-                else: 
-                    if not active_setting:
-                        stdscr.addstr(idx + header_size, 2, line)
-
-
-            if not active_setting:
-                if done: 
-                    stdscr.addstr(len(options_map) + 5, 2, "Are you sure you want to save these changes? ", curses.A_BOLD | curses.color_pair(code))
-                    stdscr.addstr("[←] or [Enter] Yes | [→] No, go back")
-                else:
-                    stdscr.addstr(len(options_map) + 5, 2, "[Esc] Exit without saving | [←] Save | [Enter] Edit | [↑][↓] Change", curses.A_DIM)
-
-
-            stdscr.refresh()
-
-        def menu_logic(stdscr):
-            curses.curs_set(0)
-            curses.start_color()
-            curses.use_default_colors()
-            curses.init_pair(code, code+1, -1)
-
-            selected = 0
-            active_setting = None
-            active_choice = 0
-            editing = False
-            done = False
-            changed = False
-
-            while True:
-                draw_menu(stdscr, selected, active_setting, active_choice if editing else None, done=done)
-                key = stdscr.getch()
-
-                if key == curses.KEY_UP and not editing:
-                    selected = (selected - 1) % len(options_map)
-                elif key == curses.KEY_DOWN and not editing:
-                    selected = (selected + 1) % len(options_map)
-                elif key == curses.KEY_LEFT:  
-                    if editing:
-                        editing = False
-                        active_setting = None
-                    elif done:
-                        break 
-                    else: 
-                        if not changed: 
-                            break
-                        done = True
-                elif key == curses.KEY_RIGHT: 
-                    if not editing: 
-                        if done: 
-                            done = False
-
-                elif key in [10, 13]:  # ENTER
-                    if done: 
-                        break
-                    if editing:
-                        setting = list(options_map.keys())[selected]
-                        new_value = options_map[setting][active_choice]
-                        current[setting] = new_value
-                        changed = True
-                        editing = False
-                        active_setting = None
-                    else:
-                        editing = True
-                        active_setting = list(options_map.keys())[selected]
-                        active_choice = options_map[active_setting].index(current[active_setting])
-                elif key == curses.KEY_DOWN and editing:
-                    active_choice = (active_choice + 1) % len(options_map[active_setting])
-                elif key == curses.KEY_UP and editing:
-                    active_choice = (active_choice - 1) % len(options_map[active_setting])
-                elif key == 27: # ESC
-                    if not editing: 
-                        exit()
-
-        curses.wrapper(menu_logic)
-
-        return current
     
-    """ Terminal UI including full integrated menu framework """
-    
+    """ Terminal UI - Menu Support """
     @staticmethod
     def read_control_key(timeout=0.1):
         """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
@@ -385,86 +300,221 @@ class Terminal:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return None
 
+    @staticmethod
+    def _get_styled(key, msg, format, default=None):
+        key = str(key)
+        groups = format["_STYLES"]
+        style = None
+        if key in groups:
+            style = groups[key]
+        elif default:
+            if default in groups:
+                style = groups[default]
+
+        if style: 
+            if isinstance(style, dict):
+                if "color" in style:
+                    color = style["color"]
+                    return Terminal.get_color(msg, color)
+                elif "color-bold" in style:
+                    color = style["color-bold"]
+                    return Terminal.get_color_bold(msg, color)
+            else:
+                style = str(style)
+                if style == "bold":
+                    return Terminal.get_bold(msg)
+                elif style == "dim":
+                    return Terminal.get_dim(msg)   
+            
+        return msg  
+    
+    @staticmethod
+    def _draw_bottom(msg):
+        cols, rows = shutil.get_terminal_size()
+        start_col = max(1, cols - len(msg) + 1)
+        sys.stdout.write(f"\x1b[{rows};{start_col}H{msg}\x1b[0m")
+
     @staticmethod 
-    def _draw_menu(lines):
+    def _draw_menu(hovering, selecting, exiting, hovering_suboption, options, current, format, buffer):
+        """ Draw and clear memu accordingly to launch_menu """
+        lines = []
+        header = format["_.HEADER"]
+        header_lines = header.split("\n")
+        for line in header_lines:
+            lines.append(line)
+
+        keys = list(current.keys())
+        for i, option in enumerate(keys):
+            option = str(option)
+            left = f"{option.replace('_', " ").capitalize():>26}"
+            sub_option = str(current[option])
+            right = sub_option
+            
+            if i == hovering:
+                lines.append(Terminal.get_reverse_bold(f"{left} : {right}"))
+            else: 
+                left = Terminal._get_styled(option, left, format, default="_LEFT")
+                right = Terminal._get_styled(sub_option, right, format, default="_RIGHT")
+                lines.append(f"{left} : {right}")
+        
+        for _ in range(0, buffer):
+            lines.append("")
+
+        sys.stdout.write(format["_.CLEAR_SCREEN"] + format["_.MOVE_CURSOR_HOME"])
+        
         for line in lines: 
-            Terminal.write(line)
+            sys.stdout.write(f"{line}\n")
+
+        Terminal._draw_bottom(f"{Terminal.get_color(format["_INSTRUCTION_ESCAPE"], "star")} | {format["_INSTRUCTION_HOME"]}")
+        sys.stdout.flush()
 
 
     @staticmethod 
-    def launch_menu(title, options : dict, current=None, selection_types=None, buffer=10, colorcode=True):
+    def launch_menu(title, options : dict, original=None, user_format=None, buffer=15):
         """ Currently supports '1D' or '2D' options, as in menu of options, when selected, another menu of options if 2D """
 
-        header = f"{Terminal.get_color_bold("Diablo", "diablo red")} {Terminal.get_color_bold("Settings", "star")}\n{Terminal.line}"
-        Terminal.write(header)
-        instruction = f"{Terminal.get_color("[Esc] Exit without saving", "star")} | [←] Save | [Enter] Edit | [↑][↓] Change"
+        logo = Terminal.get_logo()
+        menu_title = f"\n{Terminal.get_color_bold("Diablo", "diablo red")} {Terminal.get_color_bold(title, "star")}\n{Terminal.important_line}"
+        header = logo + menu_title
 
-        """ Initialize canvas of menu """
-        types = {}
-        possible_types = {"dropdown", "text", "list", "list-int", "dropdown-text", "dropdown-int"}
-        original = {}
+        """ Initialize canvas """
+        possible_types = {"dropdown", "text", "text-ip", "list", "list-int", "dropdown-text", "dropdown-text-int"}
+        current = {}
         options_size_1d = len(options)
         total_canv_size = options_size_1d
-        lines = []
+        """ Default format, naming a setting same as default may lead to bugs """
+        format = {
+            "_.HEADER" : header,
+            "_.ENTER_ALTERNATE_SCREEN" : "\x1b[?1049h",
+            "_.EXIT_ALTERNATE_SCREEN" :"\x1b[?1049l",
+            "_.HIDE_CURSOR" : "\x1b[?25l",
+            "_.SHOW_CURSOR" : "\x1b[?25h",
+            "_.CLEAR_SCREEN" : "\x1b[2J",
+            "_.MOVE_CURSOR_HOME" : "\x1b[H",
+            "_.POSSIBLE_TYPES" : possible_types,
+            "_INSTRUCTION_ESCAPE" : "[Esc] Exit ",
+            "_INSTRUCTION_LEFT" : "[←] Go Back"
+            "_INSTRUCTION_RIGHT" : ""
+            "_INSTRUCTION_HOME" : "[←] Save | [Enter] Edit | [↑][↓] Change",
+            "_INSTRUCTION_SELECTED" : "[←] Go back | [Enter] Select",
+            "_STYLES" : {
+                "_LEFT" : "bold"
+            },
+            "_TYPES" : {},
+            "_WARNINGS" : {},
+            "_RULES" : {},
+            "_PARENTS" : {}
+
+
+        }
+        if user_format: 
+            for key, _ in user_format.items(): 
+                key = str(key)
+                if key.startswith("_."):
+                    Terminal.dev_error(dedent("""You are trying to modify a protected format value, demarked by '_.' at the start.
+                                                 Modifying this value could cause the program to crash or behave unpredictably. Modify
+                                                 at your own risk."""))
+                    return
+                if not key.isupper():
+                    Terminal.dev_error(dedent("""Invalid format value. All keys in format begin with '_' and are uppercase. However,
+                                                 there are some values within the keys that are lowercased, and valid. Typically, 
+                                                 these are user or config variables, or optional values that are not necessary for 
+                                                 the program to run. For example, 'min' and 'max'."""))
+                    return
+            format.update(user_format)
+
         idx = 0 
         for key, val in options.items():
-            """ Selection_types are defaulted to dropdown, even if one is called, 
-                if the key is not present it defaults to dropdown"""
-            key = str(key)
-            if not selection_types:
-                types[key] = "dropdown"
-            else:
-                if key in selection_types:
-                    specified_type = selection_types[key]
-                    if not specified_type in possible_types:
-                        Terminal.error(f"Developor Error: Your specified input type is not supported, the supported types are {possible_types}") 
-                        return 
-                    types[key] = selection_types[key]
-                else:
-                    types[key] = "dropdown"
-            
-            """ Fill original layout of menu if specified """
+            """ Save original layout of menu if specified (used especially for settings) """
             if isinstance(val, list):
-                if current:
-                    original[key] = current[key]
+                if original:
+                    current[key] = original[key]
                 else:
-                    original[key] = str(val[0])
+                    current[key] = str(val[0])
                 dist_to_bottom = (idx + 1) + (len(val) - 1)
                 if dist_to_bottom > total_canv_size:
                     total_canv_size = dist_to_bottom
             else: 
-                if current:
-                    original[key] = current[key]
+                if original:
+                    current[key] = original[key]
                 else: 
-                    original[key] = str(val)
-            
-            """ Initalize lines stored in menu """
-            left = f"{key.replace('_', ' ').capitalize():<25}"
-            left = Terminal.get_bold(left)
-
-            if isinstance(original[key], list):
-                right = ", ".join(original[key])
-            else:
-                right = str(original[key])
-
-            if colorcode: 
-                if right == "yes" or right == "True":
-                    right = Terminal.get_color(right, "green")
-                elif right == "no" or right == "False":
-                    right = Terminal.get_color(right, "red")
-
-            lines.append(f"{left} : {right}")
+                    current[key] = str(val)
 
             idx+=1
-        
-        for s in range(0, buffer):
-            lines.append(" ")
-        total_canv_size += buffer 
 
-        lines.append(instruction)
-        total_canv_size = len(lines)
+        menu_size = options_size_1d
+        buffer = (total_canv_size - menu_size) + buffer
 
-        Terminal._draw_menu(lines)
+        """ Listen for pressed keys and draw menu accordingly """
+        hovering = 0 
+        selecting = False
+        exiting = False
+        menu_size = options_size_1d
+        selected_option = None
+        hovering_suboption = 0
+        changes_made = False
+        key = None
+        sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] + format["_.HIDE_CURSOR"])
+        try:
+            while True: 
+                Terminal._draw_menu(hovering, selecting, exiting, hovering_suboption, options, current, format, buffer)
+                key = Terminal.read_control_key()
+                if not key: 
+                    continue
+
+                if key == 'UP':
+                    if not selecting: 
+                        hovering = (hovering - 1) % menu_size
+                    elif selecting:
+                        hovering_suboption = (hovering_suboption - 1) % len(options[selected_option])
+                elif key == 'DOWN':
+                    if not selecting:
+                        hovering = (hovering + 1) % menu_size
+                    elif selecting:
+                        hovering_suboption = (hovering_suboption - 1) % len(options[selected_option])
+                elif key == 'ENTER':
+                    if not selecting:
+                        selecting = True
+                        selected_option = list(options.keys())[hovering]
+                        hovering_suboption = options[selected_option].index(current[selected_option])
+                    elif selecting:        
+                        current_option = list(options.keys())[hovering]
+                        chosen_suboption = options[current_option][selected_option]
+                        current[current_option] = chosen_suboption
+                        changes_made = True
+                        selecting = False
+                        selected_option = None
+                elif key == 'RIGHT':
+                    if not selecting and not exiting: 
+                        selecting = True
+                    elif exiting:
+                        exiting = False
+                elif key == 'LEFT':
+                    if not selecting and not exiting: 
+                        exiting = True
+                    elif selecting: 
+                        selecting = False
+                        selected_option = None 
+                    elif exiting:
+                        break 
+                elif key == 'ESC':
+                    if not selecting: 
+                        return original
+                    elif selecting:
+                        current_option = list(options.keys())[hovering]
+                        chosen_suboption = options[current_option][selected_option]
+                        current[current_option] = chosen_suboption
+                        changes_made = True
+                        selecting = False
+                        selected_option = None
+        finally:
+            sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
+
+
+
+
+
+            
 
 
 

@@ -90,9 +90,7 @@ class Settings:
     def settings_menu():
         """ Launches terminal menu for user to change settings """
 
-        Terminal.print_intro()
         Settings.check_config()
-        Terminal.write(Terminal.get_reverse("yo mama"))
         """ Set setting options, non-specified default to yes/no """
         # None yes / no setting
         manual_options = {
@@ -100,15 +98,70 @@ class Settings:
             "default_server_ip": ["10.8.0.1"],
             "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
             "blocked_ports": [53, 67, 68],   
-            "bind_interface": ["tun0"]
+            "bind_interface": ["tun0"],
         }
         """ Set selection types, non-specified default to 'dropdown' """
-        selection_types = {
-            "default_server_ip": "dropdown-text",
-            "max_clients": "dropdown-int",
-            "filtered_ports": "list-int",
-            "blocked_ports": "list-int",   
+
+        formatting = {
+            "TYPES" : {
+                "max_clients" : "text-ip",
+                "default_server_ip" : "text-ip",
+                "filtered_ports" : "list-int",
+                "blocked_ports" : "list-int",
+            },
+            "WARNINGS" : {
+                "required_password" : {
+                    "no" : "Disabling this option leaves you unprotected to unknown connections."
+                },
+                "spoof_arp" : {
+                    "yes" : "Only use this option on a network you own or are authorized to audit."
+                },
+                "spoof_arp" : {
+                    "yes" : "Only use this option on a network you own or are authorized to audit."
+                },
+                "lockdown_mode" : {
+                    "yes" : "Enabling lockdown mode will prevent any new connections."
+                },
+                "aggressive_auditing" : {
+                    "yes" : "Only use this option on a network you own or are authorized to audit."
+                },   
+            },
+            "RULES" : {
+                "filtered_ports" : {
+                    "min" : 0,
+                    "max" : 65535
+                },
+                "blocked_ports" : {
+                    "min" : 0,
+                    "max" : 65535
+                },
+                "default_server_ip" : "ip_address",
+            },
+            "PARENTS" : {
+                "monitor_arp_requests": {
+                    "no" : ["block_arp_requests", "manipulate_arp_response"],
+                },
+                "block_arp_requests": {
+                    "yes" : "monitor_arp_requests"
+                },
+                "manipulate_arp_response" : {
+                    "yes" : "monitor_arp_requests"
+                },
+                "persistant_auditing" : {
+                    "no" : ["spoof_arp", "lockdown_mode", "aggressive_auditing"],
+                },
+                "spoof_arp" : {
+                    "yes": "persistant_auditing"
+                },
+                "lockdown_mode" : {
+                    "yes": "persistant_auditing"
+                },
+                "aggressive_auditing" : {
+                    "yes": "persistant_auditing"
+                },
+            },
         }
+        
         # Infers yes / no settings based on if it's a bool 
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
             default_config = json.load(f)
@@ -135,7 +188,7 @@ class Settings:
                 # Catch anything else that isn't explicitly handled
                 current[key] = str(val)
         
-        new_config_unconverted = Terminal.launch_menu("Settings", options_map, current)
+        new_config_unconverted = Terminal.launch_menu("Settings", options_map, current, formatting)
 
         """
         # Convert readable config dictionary to an actual json 
