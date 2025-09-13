@@ -1,8 +1,18 @@
 {
-  "require_password": false,
-  "default_password": "",
+  "require_password": true,
   "log_level": "info",
-  "auto_accept_clients": true,
-  "max_clients": 10,
-  "bind_interface": "tun0"
+  "accept_new_connections": true,
+  "max_clients": "unlimited",
+  "default_server_ip": "10.8.0.1",
+  "bind_interface": "tun0",
+  "monitor_arp_requests": true,
+  "block_arp_requests": true,
+  "manipulate_arp_response": false,
+  "monitor_ports": true,
+  "filtered_ports": [],
+  "blocked_ports": [53,67,68],
+  "persistant_auditing": true,
+  "spoof_arp": false,
+  "lockdown_mode": false,
+  "aggressive_auditing": false
 }

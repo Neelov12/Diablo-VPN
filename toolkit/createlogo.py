@@ -4,7 +4,7 @@ rgb = (255, 25, 7)  # (R, G, B)
 yellow = (255, 213, 0)
 
 # Input/output files:
-in_path = "logo.txt"
+in_path = "./canvas.txt"
 out_path = "./logo"
 intro_path = "../diablo/assets/banner.txt"
 

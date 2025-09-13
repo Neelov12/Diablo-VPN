@@ -2,8 +2,10 @@ import sys
 from datetime import datetime
 import time
 import threading
-import json
 import curses
+import termios
+import tty
+import select
 from importlib.resources import files
 
 class Terminal: 
@@ -19,7 +21,7 @@ class Terminal:
         "star": (255, 213, 0)
     }
 
-    line = "____________________ _________ _______ ____ ___ __ _"
+    line = "___________________________ ____________ _______ ____ ___ __ _"
     BANNER_PATH = files("diablo.assets").joinpath("banner.txt")
 
     _animation_thread = None
@@ -33,17 +35,60 @@ class Terminal:
         for c in msg:
             ansi+= f"\x1b[38;2;{r};{g};{b}m{c}\x1b[0m"
         return ansi
+        
+    @staticmethod
+    def _get_ansi_b(msg):
+        ansi = "" 
+        for c in msg:
+            ansi+= f"\x1b[1m{c}\x1b[0m"
+        return ansi
+    
+    @staticmethod
+    def _get_ansi_cb(msg, rgb):
+        r, g, b = rgb
+        ansi = "" 
+        for c in msg:
+            ansi+= f"\x1b[1m\x1b[38;2;{r};{g};{b}m{c}\x1b[0m"
+        return ansi    
+    
+    @staticmethod
+    def _get_ansi_r(msg):
+        ansi = ""
+        #for c in msg:
+        ansi = f"\x1b[7m{msg}\x1b[0m"
+        return ansi
+
+    @staticmethod
+    def get_bold(msg):
+        return Terminal._get_ansi_b(msg)
+    
+    @staticmethod
+    def get_reverse(msg):
+        return Terminal._get_ansi_r(msg)
     
     @staticmethod 
-    def get_ansi(msg, color=None, rgb=None):
+    def get_color(msg, color=None, rgb=None):
         if not color and not rgb:
             return Terminal._findansi(msg, Terminal.preset["white"])
         if color: 
             return Terminal._findansi(msg, Terminal.preset[color])
         elif rgb: 
             return Terminal._findansi(msg, rgb)   
+        
+    @staticmethod
+    def get_color_bold(msg, color=None, rgb=None):
+        if not color and not rgb:
+            return Terminal._get_ansi_cb(msg, Terminal.preset["white"])
+        if color: 
+            return Terminal._get_ansi_cb(msg, Terminal.preset[color])
+        elif rgb: 
+            return Terminal._get_ansi_cb(msg, rgb)   
 
     """ Standard Output Management & Helpers """    
+    @staticmethod
+    def newline(lines=1):
+        print("\n" * (lines-1))
+
     @staticmethod
     def print_intro():
         with open(Terminal.BANNER_PATH, "r") as f:
@@ -155,7 +200,7 @@ class Terminal:
     
     """ Standard Input Managers & Helpers """
     @staticmethod
-    def prompt_response(name=None, options=[], yesno=False, yesnoenter=False, mercy=True):
+    def prompt_response(name=None, options=[], yes_no=False, yes_no_enter=False, mercy=True):
         """ Prompts a response from user, option to determine if reponse is valid, 
             can be used for custom command prompt"""
         prompt = ">> "
@@ -166,22 +211,23 @@ class Terminal:
             prompt = f"{name}@diablo {prompt}"
         if options: 
             prompt = f"{options} {prompt}" 
-        if yesno or yesnoenter: 
+        if yes_no or yes_no_enter: 
             if options: 
                 Terminal.error("Don't call yesno and options together, just call yesno, prompt_response handles options for you")
                 return
             options = ["yes", "no", "n", "y"]
             prompt = "(yes/no) >> "
-            if yesnoenter: 
+            if yes_no_enter: 
                 """ yesnoenter takes precedence if yesno called as well """
                 options.append("")
                 prompt = "(y/n) or press Enter >> "
 
         response = input(prompt).strip()
+
         if options: 
             if not response in options: 
                 valid = False       
-            elif yesno or yesnoenter:
+            elif yes_no or yes_no_enter:
                 yes_options = options
                 yes_options.remove("n")
                 yes_options.remove("no")
@@ -197,15 +243,13 @@ class Terminal:
         
     """ Support for Terminal psuedo-UI """
     @staticmethod
-    def launch_menu(title, options, original):
+    def _launch_menu(title, options, original):
         """ Launches terminal menu allowing user to navigate & select options using arrow keys and enter,
             takes as required arguments header (menu title), dictionary of options, and original options """
-        header = Terminal.section_header(title, ret=True)
         options_map = options
         current = original.copy()
         code = 221
         header_size = 4
-        changed = False
 
         def draw_menu(stdscr, selected, active_setting=None, active_choice=None, done=False):
             """ Outs menu options to terminal """
@@ -300,10 +344,137 @@ class Terminal:
                     active_choice = (active_choice - 1) % len(options_map[active_setting])
                 elif key == 27: # ESC
                     if not editing: 
-                        changed = True
-                        break
+                        exit()
 
         curses.wrapper(menu_logic)
+
+        return current
+    
+    """ Terminal UI including full integrated menu framework """
+    
+    @staticmethod
+    def read_control_key(timeout=0.1):
+        """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
+        fd = sys.stdin.fileno()
+        # Save old terminal read settings to restore, we are now reading raw bytes 
+        old_settings = termios.tcgetattr(fd)
+
+        try:
+            tty.setraw(fd)
+            rlist, _, _ = select.select([fd], [], [], timeout)
+            if rlist:
+                ch1 = sys.stdin.read(1)
+                if ch1 == '\x1b':  # ESC or arrow sequence
+                    ch2 = sys.stdin.read(1)
+                    if ch2 == '[':
+                        ch3 = sys.stdin.read(1)
+                        return {
+                            'A': 'UP',
+                            'B': 'DOWN',
+                            'C': 'RIGHT',
+                            'D': 'LEFT'
+                        }.get(ch3, 'ESC')
+                    return 'ESC'
+                elif ch1 == '\r':
+                    return 'ENTER'
+                elif ch1 == '\x7f' or ch1 == '\x08':
+                    return 'DELETE'
+                else:
+                    return None  
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return None
+
+    @staticmethod 
+    def _draw_menu(lines):
+        for line in lines: 
+            Terminal.write(line)
+
+
+    @staticmethod 
+    def launch_menu(title, options : dict, current=None, selection_types=None, buffer=10, colorcode=True):
+        """ Currently supports '1D' or '2D' options, as in menu of options, when selected, another menu of options if 2D """
+
+        header = f"{Terminal.get_color_bold("Diablo", "diablo red")} {Terminal.get_color_bold("Settings", "star")}\n{Terminal.line}"
+        Terminal.write(header)
+        instruction = f"{Terminal.get_color("[Esc] Exit without saving", "star")} | [←] Save | [Enter] Edit | [↑][↓] Change"
+
+        """ Initialize canvas of menu """
+        types = {}
+        possible_types = {"dropdown", "text", "list", "list-int", "dropdown-text", "dropdown-int"}
+        original = {}
+        options_size_1d = len(options)
+        total_canv_size = options_size_1d
+        lines = []
+        idx = 0 
+        for key, val in options.items():
+            """ Selection_types are defaulted to dropdown, even if one is called, 
+                if the key is not present it defaults to dropdown"""
+            key = str(key)
+            if not selection_types:
+                types[key] = "dropdown"
+            else:
+                if key in selection_types:
+                    specified_type = selection_types[key]
+                    if not specified_type in possible_types:
+                        Terminal.error(f"Developor Error: Your specified input type is not supported, the supported types are {possible_types}") 
+                        return 
+                    types[key] = selection_types[key]
+                else:
+                    types[key] = "dropdown"
+            
+            """ Fill original layout of menu if specified """
+            if isinstance(val, list):
+                if current:
+                    original[key] = current[key]
+                else:
+                    original[key] = str(val[0])
+                dist_to_bottom = (idx + 1) + (len(val) - 1)
+                if dist_to_bottom > total_canv_size:
+                    total_canv_size = dist_to_bottom
+            else: 
+                if current:
+                    original[key] = current[key]
+                else: 
+                    original[key] = str(val)
+            
+            """ Initalize lines stored in menu """
+            left = f"{key.replace('_', ' ').capitalize():<25}"
+            left = Terminal.get_bold(left)
+
+            if isinstance(original[key], list):
+                right = ", ".join(original[key])
+            else:
+                right = str(original[key])
+
+            if colorcode: 
+                if right == "yes" or right == "True":
+                    right = Terminal.get_color(right, "green")
+                elif right == "no" or right == "False":
+                    right = Terminal.get_color(right, "red")
+
+            lines.append(f"{left} : {right}")
+
+            idx+=1
+        
+        for s in range(0, buffer):
+            lines.append(" ")
+        total_canv_size += buffer 
+
+        lines.append(instruction)
+        total_canv_size = len(lines)
+
+        Terminal._draw_menu(lines)
+
+
+
+        
+        
+
+
+
+
+
 
 
 

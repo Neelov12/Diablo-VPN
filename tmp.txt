@@ -1,27 +1,26 @@
-import json
-import os
-import platform
-from textwrap import dedent
-from pathlib import Path
-from importlib.resources import files
-from .terminal import Terminal 
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
 
-class Settings: 
-    # Windows for future development
-    if platform.system() == "Windows":
-        CONFIG_DIR = Path(os.getenv("APPDATA", "~/.config")).expanduser() / "diablo"
-    else:
-        CONFIG_DIR = Path.home() / ".config" / "diablo"
-
-    CONFIG_PATH = CONFIG_DIR / "config.json"
-    DEFAULT_CONFIG_PATH = files("diablo.defaults").joinpath("config.json")
-
-    @staticmethod
-    def _ensure_config_exists():
-        if not Settings.CONFIG_PATH.exists():
-            Settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
-                f_target.write(f_default.read())
-
-    _ensure_config_exists()  # Ensure config is initialized
-
+    try:
+        tty.setraw(fd)
+        rlist, _, _ = select.select([fd], [], [], timeout)
+        if rlist:
+            ch1 = sys.stdin.read(1)
+            if ch1 == '\x1b':  # ESC or arrow sequence
+                ch2 = sys.stdin.read(1)
+                if ch2 == '[':
+                    ch3 = sys.stdin.read(1)
+                    return {
+                        'A': 'UP',
+                        'B': 'DOWN',
+                        'C': 'RIGHT',
+                        'D': 'LEFT'
+                    }.get(ch3, 'ESC')
+                return 'ESC'
+            elif ch1 == '\r':
+                return 'ENTER'
+            else:
+                return ch1  # Return literal character
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return None

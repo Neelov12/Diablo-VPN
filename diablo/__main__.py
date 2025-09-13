@@ -30,7 +30,8 @@ def arguments():
     """ disconnect """
     subparsers.add_parser("disconnect", help='Disconnect from current connection')
     """ settings """
-    subparsers.add_parser("settings", help='Change configuration settings')
+    settings_parser = subparsers.add_parser("settings", help='Change configuration settings\n\'-restore\' to revert to default')
+    settings_parser.add_argument('-restore', action='store_true', help='IP address of the Diablo proxy server')    
 
 
     return parser.parse_args()
@@ -48,5 +49,8 @@ def main():
         from .restart import restart
         restart()
     elif args.command == 'settings':
-        Terminal.print_intro()
-        Settings.settings_menu()
+        from .settings import Settings
+        if args.restore:
+            Settings.reset_to_default()
+        else:
+            Settings.settings_menu()

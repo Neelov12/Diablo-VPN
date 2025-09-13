@@ -21,7 +21,7 @@ class Settings:
         if not Settings.CONFIG_PATH.exists():
             Settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
-                f_target.write(f_default.read())
+                f_target.write(f_default.read()) 
 
     @staticmethod
     def load_config():
@@ -38,6 +38,34 @@ class Settings:
         config = Settings.load_config()
         config.update(new_values)
         Settings.save_config(config)
+
+    @staticmethod
+    def check_config():
+        """ Basic corruption check of config file """
+        if not Settings.CONFIG_PATH.exists():
+            Settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
+                f_target.write(f_default.read())
+            return True 
+        
+        with open(Settings.DEFAULT_CONFIG_PATH) as f:
+            default_config = json.load(f)
+
+        current_config = Settings.load_config()
+
+        for key in current_config:
+            if not key in default_config:
+                warning_msg = dedent("""
+                Corrupted configuration file found in user's workspace. Restoring user's settings to 
+                default. If you are a developer experimenting with Diablo's configurations, change 
+                'diablo/default/config.json' instead of config.json in user bin. The program updates
+                the workspace config periodically based on the default configs, such as here. More 
+                optimally, just run 'diablo settings -restore' after changing default config.json.                   
+                """)
+                Terminal.warn(warning_msg)
+                with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
+                    f_target.write(f_default.read())
+        
     
     @staticmethod
     def reset_to_default():
@@ -47,7 +75,7 @@ class Settings:
         you will be restored to default settings. Do you wish to proceed?
         """)
         Terminal.warn(warning_msg)
-        _, is_yes = Terminal.prompt_response(yesno=True, mercy=False)     
+        _, is_yes = Terminal.prompt_response(yes_no=True, mercy=False)     
 
         if not is_yes:
             return 
@@ -55,16 +83,31 @@ class Settings:
         with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
             f_target.write(f_default.read())
 
+        Terminal.newline()
+        Terminal.success("Restored settings to default")
+
     @staticmethod
     def settings_menu():
         """ Launches terminal menu for user to change settings """
 
-        Settings._ensure_config_exists()
+        Terminal.print_intro()
+        Settings.check_config()
+        Terminal.write(Terminal.get_reverse("yo mama"))
+        """ Set setting options, non-specified default to yes/no """
         # None yes / no setting
         manual_options = {
             "log_level": ["debug", "info", "warning", "error"],
-            "max_clients": [str(i) for i in range(1, 12)],
+            "default_server_ip": ["10.8.0.1"],
+            "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
+            "blocked_ports": [53, 67, 68],   
             "bind_interface": ["tun0"]
+        }
+        """ Set selection types, non-specified default to 'dropdown' """
+        selection_types = {
+            "default_server_ip": "dropdown-text",
+            "max_clients": "dropdown-int",
+            "filtered_ports": "list-int",
+            "blocked_ports": "list-int",   
         }
         # Infers yes / no settings based on if it's a bool 
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
@@ -92,7 +135,24 @@ class Settings:
                 # Catch anything else that isn't explicitly handled
                 current[key] = str(val)
         
-        Terminal.launch_menu("Settings", options_map, current)
+        new_config_unconverted = Terminal.launch_menu("Settings", options_map, current)
+
+        """
+        # Convert readable config dictionary to an actual json 
+        new_config = {}
+        for key, val in new_config_unconverted.items():
+            key = str(key)
+            if isinstance(val, str):
+                if val.lower() == "yes":
+                    new_config[key] = True
+                elif val.lower() == "no":
+                    new_config[key] = False
+                else:
+                    new_config[key] = val      
+
+        if current_config != new_config:
+            Settings.save_config(new_config)
+        """
 
         
 
