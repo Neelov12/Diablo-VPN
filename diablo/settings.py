@@ -103,6 +103,13 @@ class Settings:
         """ Set selection types, non-specified default to 'dropdown' """
 
         formatting = {
+            "_OPTIONS" : {
+                "log_level": ["debug", "info", "warning", "error"],
+                "default_server_ip": ["10.8.0.1"],
+                "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
+                "blocked_ports": [53, 67, 68],   
+                "bind_interface": ["tun0"],
+            },
             "_TYPES" : {
                 "max_clients" : "text-ip",
                 "default_server_ip" : "text-ip",
@@ -159,6 +166,46 @@ class Settings:
                 "aggressive_auditing" : {
                     "yes": "persistant_auditing"
                 },
+            },
+            "_DEFAULTS" : {
+                "_INSTRUCTION_LEFT" : {
+                    "_" : "[←] Save & Exit",
+                    "_STYLE" : "bold"
+                },
+                "_INSTRUCTION_UP_DOWN" : "[↑][↓] Change",
+                "_INSTRUCTION_ESCAPE" : {
+                    "_" : "[Esc] Quit",
+                    "_STYLE" : {
+                        "color-bold" : "star"
+                    }
+                },      
+            },
+            "_INSTRUCTION_HOME" : {
+                "_ORDER" : ["_INSTRUCTION_ESCAPE", "_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_RIGHT", "_INSTRUCTION_UP_DOWN"],
+                "_INSTRUCTION_ENTER" : "[Enter]",
+                "_INSTRUCTION_RIGHT" : "[→] Select",
+            },
+            "_INSTRUCTION_SELECTING" : {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_UP_DOWN"],
+                "_INSTRUCTION_LEFT" : {
+                    "_" : "[←] Back",
+                    "_STYLE" : "bold"
+                },
+                "_INSTRUCTION_ENTER" : "[Enter] Select",
+                "_INSTRUCTION_ESCAPE" : {
+                    "_" : "[Esc] Back",
+                    "_STYLE" : {
+                        "color-bold" : "star"
+                    }
+                }, 
+            },
+            "_INSTRUCTION_CONFIRMING" : {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER"],
+                "_INSTRUCTION_ENTER" : "[Enter] Confirm",
+            },
+            "_INSTRUCTION_EXITING": {
+                "_ORDER" : ["_INSTRUCTION_LEFT", "INSTRUCTION_RIGHT"],
+                "_INSTRUCTION_RIGHT" : "[→] Return"
             },
         }
         

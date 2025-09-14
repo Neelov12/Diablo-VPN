@@ -392,11 +392,11 @@ class Terminal:
                     if "_STYLE" in instr_unformatted:
                         style = instr_unformatted["_STYLE"]
                         if isinstance(style, dict):
-                            if "color" in style:
-                                color = style["color"]
-                                instructions.append(Terminal.get_color(instr_text, color))
-                            elif "color-bold" in style:
+                            if "color-bold" in style:
                                 color = style["color-bold"]
+                                instructions.append(Terminal.get_color_bold(instr_text, color))
+                            elif "color" in style:
+                                color = style["color"]
                                 instructions.append(Terminal.get_color(instr_text, color))
                             else: 
                                 instructions.append(instr_text)
@@ -430,16 +430,36 @@ class Terminal:
         else: 
             return
 
+    @staticmethod 
+    def _draw_dropdown(left, right, selected_option, options, hovering_suboption, lines):
+        """ Simple dropdown option, user chooses from a set of options, starts at current option """
+        sub_options = options[selected_option]
+        current_idx = sub_options.index(right)
+        left_selec = Terminal.get_color_bold(left, "star")
+        pad = " "*26
+
+        for i in range(0, len(sub_options)):
+            from_current_idx = (i + current_idx) % len(sub_options)
+
+            if hovering_suboption == from_current_idx:
+                if i == 0:
+                    lines.append(f"{left_selec} : {Terminal.get_reverse(sub_options[from_current_idx])}")
+                else: 
+                    lines.append(f"{pad} : {Terminal.get_reverse(sub_options[from_current_idx])}")
+            else: 
+                if i == 0:
+                    lines.append(f"{left_selec} : {sub_options[from_current_idx]}")
+                else:
+                    lines.append(f"{pad} : {sub_options[from_current_idx]}")
 
     @staticmethod 
-    def _draw_menu(hovering, selecting, exiting, hovering_suboption, options, current, format, buffer):
+    def _draw_menu(hovering, selected_option, exiting, hovering_suboption, options, current, format):
         """ Draw and clear memu accordingly to launch_menu """
         lines = []
         header = format["_.HEADER"]
         header_lines = header.split("\n")
         for line in header_lines:
             lines.append(line)
-
         keys = list(current.keys())
         for i, option in enumerate(keys):
             option = str(option)
@@ -448,13 +468,24 @@ class Terminal:
             right = sub_option
             
             if i == hovering:
-                lines.append(Terminal.get_reverse_bold(f"{left} : {right}"))
+                if not selected_option:
+                    lines.append(Terminal.get_reverse_bold(f"{left} : {right}"))
+                elif selected_option == option: 
+                    type_of = format["_TYPES"]
+                    type = type_of[option]
+                    if type == "dropdown":
+                        Terminal._draw_dropdown(left, right, selected_option, options, hovering_suboption, lines)
+                        for i in range(0, len(keys) - i):
+                            lines.append("")
+
             else: 
-                left = Terminal._get_styled(option, left, format, default="_LEFT")
-                right = Terminal._get_styled(sub_option, right, format, default="_RIGHT")
-                lines.append(f"{left} : {right}")
-        
-        for _ in range(0, buffer):
+                if not selected_option:
+                    left = Terminal._get_styled(option, left, format, default="_LEFT")
+                    right = Terminal._get_styled(sub_option, right, format, default="_RIGHT")
+                    lines.append(f"{left} : {right}")
+            
+            
+        for i in range(5):
             lines.append("")
 
         sys.stdout.write(format["_.CLEAR_SCREEN"] + format["_.MOVE_CURSOR_HOME"])
@@ -462,8 +493,10 @@ class Terminal:
         for line in lines: 
             sys.stdout.write(f"{line}\n")
 
-        #Terminal._draw_bottom(f"{Terminal.get_color(format["_INSTRUCTION_ESCAPE"], "star")} | {format["_INSTRUCTION_HOME"]}")
-        Terminal._draw_instruction("_INSTRUCTION_HOME", format)
+        if not selected_option:
+            Terminal._draw_instruction("_INSTRUCTION_HOME", format)
+        elif selected_option:
+            Terminal._draw_instruction("_INSTRUCTION_SELECTING", format)
         sys.stdout.flush()
 
 
@@ -519,6 +552,7 @@ class Terminal:
             "_STYLES" : {
                 "_LEFT" : "bold"
             },
+            "_OPTIONS" : {},
             "_TYPES" : {},
             "_WARNINGS" : {},
             "_RULES" : {},
@@ -548,6 +582,7 @@ class Terminal:
             format.update(user_format)
 
         idx = 0 
+        type = {}
         for key, val in options.items():
             """ Save original layout of menu if specified (used especially for settings) """
             if isinstance(val, list):
@@ -563,6 +598,14 @@ class Terminal:
                     current[key] = original[key]
                 else: 
                     current[key] = str(val)
+            """ Set options, defaults to (yes, no) if not specified """
+            options_tmp = format["_OPTIONS"]
+            if not key in options_tmp:
+                options_tmp[key] = ["yes", "no"]
+            """ Determine type of input for option field """
+            type_tmp = format["_TYPES"]
+            if not key in type_tmp:
+                type_tmp[key] = "dropdown"
 
             idx+=1
 
@@ -582,11 +625,11 @@ class Terminal:
         sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] + format["_.HIDE_CURSOR"])
         try:
             while True: 
-                Terminal._draw_menu(hovering, selecting, exiting, hovering_suboption, options, current, format, buffer)
+                Terminal._draw_menu(hovering, selected_option, exiting, hovering_suboption, options, current, format)
                 key = Terminal.read_control_key()
                 if not key: 
                     continue
-
+                
                 if key == 'UP':
                     if not selecting: 
                         hovering = (hovering - 1) % menu_size
@@ -596,7 +639,7 @@ class Terminal:
                     if not selecting:
                         hovering = (hovering + 1) % menu_size
                     elif selecting:
-                        hovering_suboption = (hovering_suboption - 1) % len(options[selected_option])
+                        hovering_suboption = (hovering_suboption + 1) % len(options[selected_option])
                 elif key == 'ENTER':
                     if not selecting:
                         selecting = True

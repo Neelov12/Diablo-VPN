@@ -1,1 +1,18 @@
-→
+        sub_options = options[selected_option]
+        current_idx = sub_options.index(right)
+        left_selec = Terminal.get_color_bold(left, "star")
+        pad = " "*26
+
+        for i in range(0, len(sub_options)):
+            from_current_idx = (i + current_idx) % len(sub_options)
+
+            if hovering_suboption == from_current_idx:
+                if i == 0:
+                    lines.append(f"{left_selec} : {Terminal.get_reverse(sub_options[current_idx])}")
+                else: 
+                    lines.append(f"{pad} : {Terminal.get_reverse(sub_options[current_idx])}")
+            else: 
+                if i == 0:
+                    lines.append(f"{left_selec} : {sub_options[current_idx]}")
+                else:
+                    lines.append(f"{pad} : {sub_options[current_idx]}")
