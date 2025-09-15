@@ -87,13 +87,35 @@ class Settings:
         Settings.save_config(config)
 
     @staticmethod
+    def reset_to_default():
+        #Terminal.print_intro()
+        warning_msg = dedent(f"""
+        If you reset settings to default, all prior configurations will be erased and
+        you will be restored to default settings. Do you wish to proceed?
+        """)
+        Terminal.warn(warning_msg)
+        _, is_yes = Terminal.prompt_response(yes_no=True, mercy=False)     
+
+        if not is_yes:
+            return 
+        
+        with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
+            f_target.write(f_default.read())
+
+        Terminal.newline()
+        Terminal.success("Restored settings to default")
+
+        # Infers yes / no settings based on if it's a bool 
+        with open(Settings.DEFAULT_CONFIG_PATH) as f:
+            default_config = json.load(f)
+
+    @staticmethod
     def validate_config():
         """ Basic corruption check of config file """
         if not Settings.CONFIG_PATH.exists():
             Settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target:
-                f_target.write(f_default.read())
-            return True 
+                f_target.write(f_default.read()) 
         
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
             default_config = json.load(f)
@@ -101,21 +123,31 @@ class Settings:
         current_config = Settings.load_config()
 
         option_added = False
-        for key in current_config:
-            if not key in default_config:
+        for key in default_config:
+            if not key in current_config:
                 option_added = True
                 Terminal.warn(f"DEVELOPER WARNING: It seems like you've added \'{key}\' as a setting option.")
+                """
+                Terminal.warn(Settings.developer_warning)
+                with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
+                    f_target.write(f_default.read())
+                """
+
+        if option_added:
+            Terminal.warn(dedent(f"""
+                DEVELOPER WARNING: You will need to add the logic for this option(s) to your modified Diablo code or 
+                                   program will not work. Also, if your setting option is not a bool, you will need
+                                   to adjust 'Settings.none_bool_options' accordingly. Reseting to defaults will add
+                                   your custom setting option(s) to the program. 
+                """))
+            Settings.reset_to_default()
+        
+        for key in current_config:
+            if not key in default_config:
                 Terminal.warn(Settings.developer_warning)
                 with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
                     f_target.write(f_default.read())
 
-        if option_added:
-            Terminal.warn(dedent(f"""
-                DEVELOPER WARNING: It seems like you've added '{key}' as a setting option. 
-                                   You will need to add the logic for this option to your modified Diablo code or 
-                                   program will not work. Also, if your setting option is not a bool, you will need
-                                   to adjust 'Settings.none_bool_options' accordingly. 
-                """))
     @staticmethod 
     def _validate_choice(choice, possible_choice):
         if possible_choice.startswith("_.TEXT"):
@@ -170,7 +202,7 @@ class Settings:
     
     @staticmethod
     def reset_to_default():
-        Terminal.print_intro()
+        #Terminal.print_intro()
         warning_msg = dedent(f"""
         If you reset settings to default, all prior configurations will be erased and
         you will be restored to default settings. Do you wish to proceed?
@@ -206,7 +238,6 @@ class Settings:
                 choices[setting] = ["Yes", "No"]
 
         current_config = Settings.load_config()
-        current = {}
         for setting, choice in current_config.items():
             if isinstance(choice, bool):
                 if choice == True: 

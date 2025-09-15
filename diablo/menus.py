@@ -26,8 +26,12 @@ class Menus:
         Menus._cache[f".TMP.{name}"] = var
 
     @staticmethod
-    def _get_cache(name, var):
-        return Menus._cache[f".TMP.{name}"]
+    def _get_cache(name):
+        var_name = f".TMP.{name}"
+        if var_name in Menus._cache:
+            return Menus._cache[f".TMP.{name}"]
+        else:
+            return None
     
     @staticmethod
     def _setup_menu_environment(options, option_names=None, current=None, choices=None):
@@ -35,14 +39,16 @@ class Menus:
             if not current and not choices:
                 Terminal.dev_error("Improper use of menu, if calling with current and choices, don't call option_names")
             
-            for option_name, choices in choices.items():
+            for option_name, _choices in choices.items():
+                options[option_name] = ""
                 print(option_name)
-                options[option_name] = {"current" : current[option_name]}
+                pprint.pprint(current)
                 type = "dropdown"
-                if isinstance(choices, list):
+                if isinstance(_choices, list):
                     type = "dropdown"
+                    rules = {}
                     updated_choices = []
-                    for possible_choice in choices:
+                    for possible_choice in _choices:
                         if possible_choice.startswith("_.TEXT"):
                             text_rule = possible_choice
                             if text_rule == "_.TEXT_INT":
@@ -63,16 +69,20 @@ class Menus:
                                             rules["MAX"] = params[i+1]
                                         elif p == "MIN":
                                             rules["MIN"] = params[i+1]
-                                    options[option_name] = {"rules" : rules}
-
                         else:
                             updated_choices.append(possible_choice)
-                    options[option_name] = {"choices" : updated_choices}
-                    options[option_name] = {"type" : type}
 
-                elif isinstance(choices, str):
-                    if possible_choice.startswith("_.TEXT"):
-                        text_rule = possible_choice
+                    options[option_name] = {
+                            "current" : current[option_name],
+                            "choices" : updated_choices,
+                            "type" : type,
+                            "rules" : rules
+                    }
+
+                elif isinstance(_choices, str):
+                    rules = {}
+                    if _choices.startswith("_.TEXT"):
+                        text_rule = _choices
                         if text_rule == "_.TEXT_INT":
                             type = "text-int"
                         elif text_rule == "_.TEXT_FLOAT":
@@ -91,11 +101,9 @@ class Menus:
                                         rules["MAX"] = params[i+1]
                                     elif p == "MIN":
                                         rules["MIN"] = params[i+1]
-                                options[option_name] = {"rules" : rules}
-                        options[option_name] = {"type" : type}
 
-                    elif possible_choice.startswith("_.LIST"):
-                        list_rule = possible_choice
+                    elif _choices.startswith("_.LIST"):
+                        list_rule = _choices
                         if list_rule == "_.LIST_INT":
                             type = "list-int"
                         elif list_rule == "_.LIST_FLOAT":
@@ -114,10 +122,15 @@ class Menus:
                                         rules["MAX"] = params[i+1]
                                     elif p == "MIN":
                                         rules["MIN"] = params[i+1]
-                                options[option_name] = {"rules" : rules}  
-                        options[option_name] = {"type" : type}
                     else:
-                        Terminal.dev_error(f"Improper naming of choice rule '{possible_choice}'.")       
+                        Terminal.dev_error(f"Improper naming of choice rule '{_choices}'.")       
+                    
+                    options[option_name] = {
+                            "current" : current[option_name],
+                            "choices" : None,
+                            "type" : type,
+                            "rules" : rules
+                    }
         else:
             for option_name in option_names:
                 options[option_name] = {"rules" : rules}
@@ -136,19 +149,19 @@ class Menus:
         Menus._add_cache("_.FOOTER_RSHIFT", right_shift)
 
     @staticmethod
-    def _update_instruction(msg=None, color_bold_msg=None, color_msg=None, bold_msg=None, color="star", rshift=True):
+    def _update_instruction(color_bold_msg=None, color_msg=None, bold_msg=None, msg=None, color="star", rshift=True):
         instr = ""
         instr_len = 0
-        if color_bold_msg:
+        if color_bold_msg is not None:
             instr_len += len(color_bold_msg)
-            instr+= Terminal.get_color_bold(color_msg, color)
-        if color_msg:
+            instr+= Terminal.get_color_bold(color_bold_msg, color)
+        if color_msg is not None:
             instr_len += len(color_msg)
             instr+= Terminal.get_color(color_msg, color)
-        if bold_msg:
+        if bold_msg is not None:
             instr_len += len(bold_msg)
             instr+= Terminal.get_bold(bold_msg)   
-        if msg:
+        if msg is not None:
             instr_len += len(msg)
             instr+= msg
         Menus._make_menu_footer(instr, instr_len, rshift)
@@ -197,7 +210,7 @@ class Menus:
         left = Menus._get_style(option_format, "left", state)
         right = Menus._get_style(choice_format, "right", state)
         Menus._add_cache(var_name, f"{left} : {right}")
-        return Menus._add_cache(var_name)
+        return Menus._get_cache(var_name)
 
     @staticmethod
     def open_menu():
@@ -213,7 +226,7 @@ class Menus:
     @staticmethod
     def _draw_footer():
         footer_msg = Menus._get_cache("_.FOOTER")
-        footer_len = Menus._get_cache("_.FOOTER_LEN", len)
+        footer_len = Menus._get_cache("_.FOOTER_LEN")
         right_shift = Menus._get_cache("_.FOOTER_RSHIFT")
 
         cols, rows = shutil.get_terminal_size()
@@ -270,7 +283,6 @@ class Menus:
         for i in range(5):
             lines.append("")
 
-        sys.stdout.write(format["_.CLEAR_SCREEN"] + format["_.MOVE_CURSOR_HOME"])
         Terminal.clear()
         Terminal.move_cursor_home()
         
@@ -285,6 +297,7 @@ class Menus:
     @staticmethod
     def open_settings_menu(current, choices):
         options = {}
+        pprint.pprint(current)
         Menus._setup_menu_environment(options, current=current, choices=choices)
         Menus._make_menu_header("Settings")
         Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save", msg="| [Enter][→] Select | [↑][↓] Change")
@@ -297,9 +310,11 @@ class Menus:
         exiting = False
         menu_size = len(choices)
         changed = {}
+        pprint.pprint(options)
+        Menus.open_menu()
         try:
             while True: 
-                Terminal._draw_menu(hovering, choosing, options)
+                Menus._draw_menu(hovering, choosing, options)
                 key = Terminal.read_control_key(other_keys=['u', 'U'])
                 if not key: 
                     continue
@@ -317,6 +332,10 @@ class Menus:
                 elif key == 'ENTER':
                     if not choosing:
                         selected_option = list(choices.keys())[hovering]
+                        print("SHITSTAIN")
+                        #print(selected_option)
+                        #pprint.pprint(current)
+                        #pprint.pprint(choices)
                         choosing = choices[selected_option].index(current[selected_option])
                     else:        
                         current_option = list(choices.keys())[hovering]
@@ -354,5 +373,4 @@ class Menus:
                         break
 
         finally:
-            sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
             Menus.close_menu()

@@ -267,11 +267,11 @@ class Terminal:
                 Terminal.error("Don't call yesno and options together, just call yesno, prompt_response handles options for you")
                 return
             options = ["yes", "no", "n", "y"]
-            prompt = "(yes/no) >> "
+            prompt = Terminal.get_bold("(yes/no)") + " >> "
             if yes_no_enter: 
                 """ yesnoenter takes precedence if yesno called as well """
                 options.append("")
-                prompt = "(y/n) or press Enter >> "
+                prompt = Terminal.get_bold("(y/n) or (Enter)") + " >> "
 
         response = input(prompt).strip()
 
@@ -342,6 +342,7 @@ class Terminal:
             sys.stdout.write(f"\x1b[{lines}B")
         else:
             sys.stdout.write("\x1b[B")   
+            
     @staticmethod
     def write_at(row, col, msg):
         sys.stdout.write(f"\x1b[{row};{col}H{msg}\x1b[0m")
