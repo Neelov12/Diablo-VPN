@@ -1,4 +1,5 @@
 {
+  "name" : "user",
   "require_password": true,
   "log_level": "info",
   "accept_new_connections": true,

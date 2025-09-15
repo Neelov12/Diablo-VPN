@@ -23,6 +23,15 @@ class Terminal:
         "star": (255, 213, 0)
     }
 
+    ansi_codes = {
+        "ENTER_ALTERNATE_SCREEN" : "\x1b[?1049h",
+        "EXIT_ALTERNATE_SCREEN" :"\x1b[?1049l",
+        "HIDE_CURSOR" : "\x1b[?25l",
+        "SHOW_CURSOR" : "\x1b[?25h",
+        "CLEAR_SCREEN" : "\x1b[2J",
+        "MOVE_CURSOR_HOME" : "\x1b[H",
+    }
+
     version = "Version Beta 0.1"
     important_line = "______________________________________________ _________________ __________ _______ ___ __ _ "
     line = "___________________________ ____________ _______ ____ ___ __ _"
@@ -134,16 +143,20 @@ class Terminal:
         print(f"{msg_type} {msg_coded}")
 
     @staticmethod
-    def error(msg):
+    def error(msg, exit=False):
         msg_type = Terminal._get_ansi_cb("[-] Error:", Terminal.preset["red"])
         msg_coded = Terminal._findansi(msg, Terminal.preset["red"])
         print(f"{msg_type} {msg_coded}")
+        if exit: 
+            sys.exit(1)
     
     @staticmethod
-    def dev_error(msg):
+    def dev_error(msg, exit=False):
         msg_type = Terminal._get_ansi_cb("[-] Developer Error:", Terminal.preset["red"])
         msg_coded = Terminal._findansi(msg, Terminal.preset["white"])
-        print(f"{msg_type} {msg_coded}")
+        sys.stdout.write(f"{msg_type} {msg_coded}")
+        if exit:
+            sys.exit(1)
 
     @staticmethod
     def success(msg):
