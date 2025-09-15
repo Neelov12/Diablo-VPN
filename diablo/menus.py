@@ -128,10 +128,14 @@ class Menus:
         header = f"{logo}{menu_title}"
         Menus._add_cache("_.HEADER", header)
 
-    def _make_menu_footer(msg, len):
-        Menus._add_cache("_.HEADER", header)
+    @staticmethod
+    def _make_menu_footer(footer, len, right_shift=False):
+        Menus._add_cache("_.FOOTER", footer)
+        Menus._add_cache("_.FOOTER_LEN", len)
+        Menus._add_cache("_.FOOTER_RSHIFT", right_shift)
 
-    def create_instruction(msg=None, color_bold_msg=None, color_msg=None, bold_msg=None, color="star"):
+    @staticmethod
+    def _update_instruction(msg=None, color_bold_msg=None, color_msg=None, bold_msg=None, color="star", rshift=True):
         instr = ""
         instr_len = 0
         if color_bold_msg:
@@ -146,10 +150,7 @@ class Menus:
         if msg:
             instr_len += len(msg)
             instr+= msg
-        Menus._make_menu_footer(instr, instr_len)
-
-
-
+        Menus._make_menu_footer(instr, instr_len, rshift)
 
     @staticmethod
     def open_menu():
@@ -162,111 +163,120 @@ class Menus:
         Terminal.close_terminal()
         Terminal.show_cursor()
 
+    @staticmethod 
+    def _draw_menu(hovering, choosing, options):
+        """ Draw and clear memu accordingly to launch_menu """
+        lines = []
+        header_lines = Menus._get_cache("_.HEADER").split("\n")
+        for line in header_lines:
+            lines.append(line)
+        keys = list(current.keys())
+        for i, option in enumerate(keys):
+            option = str(option)
+            left = f"{option.replace('_', " ").capitalize():>26}"
+            sub_option = str(current[option])
+            right = sub_option
+            
+            if i == hovering:
+                if not selected_option:
+                    lines.append(Terminal.get_reverse_bold(f"{left} : {right}"))
+                elif selected_option == option: 
+                    type_of = format["_TYPES"]
+                    type = type_of[option]
+                    if type == "dropdown":
+                        Terminal._draw_dropdown(left, right, selected_option, options, hovering_suboption, lines)
+                        for i in range(0, len(keys) - i):
+                            lines.append("")
 
+            else: 
+                if not selected_option:
+                    left = Terminal._get_styled(option, left, format, default="_LEFT")
+                    right = Terminal._get_styled(sub_option, right, format, default="_RIGHT")
+                    lines.append(f"{left} : {right}")
+            
+            
+        for i in range(5):
+            lines.append("")
 
-    @staticmethod
-    def read_control_key(timeout=0.1):
-        """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
-        fd = sys.stdin.fileno()
-        # Save old terminal read settings to restore, we are now reading raw bytes 
-        old_settings = termios.tcgetattr(fd)
+        sys.stdout.write(format["_.CLEAR_SCREEN"] + format["_.MOVE_CURSOR_HOME"])
+        
+        for line in lines: 
+            sys.stdout.write(f"{line}\n")
 
-        try:
-            tty.setraw(fd)
-            rlist, _, _ = select.select([fd], [], [], timeout)
-            if rlist:
-                ch1 = sys.stdin.read(1)
-                if ch1 == '\x1b':  # ESC or arrow sequence
-                    ch2 = sys.stdin.read(1)
-                    if ch2 == '[':
-                        ch3 = sys.stdin.read(1)
-                        return {
-                            'A': 'UP',
-                            'B': 'DOWN',
-                            'C': 'RIGHT',
-                            'D': 'LEFT'
-                        }.get(ch3, 'ESC')
-                    return 'ESC'
-                elif ch1 == '\r':
-                    return 'ENTER'
-                elif ch1 == '\x7f' or ch1 == '\x08':
-                    return 'DELETE'
-                elif ch1 == 'u' or 'U':
-                    return 'UNDO'
-                else:
-                    return None
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return None
+        if not selected_option:
+            Terminal._draw_instruction("_INSTRUCTION_HOME", format)
+        elif selected_option:
+            Terminal._draw_instruction("_INSTRUCTION_SELECTING", format)
+        sys.stdout.flush()
+
     
     @staticmethod
     def open_settings_menu(current, choices):
         options = {}
         Menus._setup_menu_environment(options, current=current, choices=choices)
-        Menus.make_menu_header("Settings")
-        instr = "[Esc] Quit"
-        colored_len = len(instr)
-        instr += " | [←] Save | [Enter][→] Select | [↑][↓] Change"
-        ascii_len = 
-        Menus.
+        Menus._make_menu_header("Settings")
+        Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save", msg="| [Enter][→] Select | [↑][↓] Change")
 
-        Menus.open_menu()
-
-        logo = Terminal.get_logo()
-        menu_title = f"\n{Terminal.get_color_bold("Diablo", "diablo red")} {Terminal.get_color_bold(title, "star")}\n{Terminal.important_line}"
-        header = logo + menu_title
+        hovering = 0
+        choosing = None
+        exiting = False
+        menu_size = len(choices)
+        changed = {}
         try:
             while True: 
-                Terminal._draw_menu(hovering, selected_option, exiting, hovering_suboption, options, current, format)
+                Terminal._draw_menu(hovering, choosing, options)
                 key = Terminal.read_control_key(other_keys=['u', 'U'])
                 if not key: 
                     continue
                 
                 if key == 'UP':
-                    if not selecting: 
+                    if not choosing: 
                         hovering = (hovering - 1) % menu_size
-                    elif selecting:
-                        hovering_suboption = (hovering_suboption - 1) % len(options[selected_option])
+                    else:
+                        choosing = (choosing - 1) % len(chosen_choice)
                 elif key == 'DOWN':
-                    if not selecting:
+                    if not choosing:
                         hovering = (hovering + 1) % menu_size
-                    elif selecting:
-                        hovering_suboption = (hovering_suboption + 1) % len(options[selected_option])
+                    else:
+                        hovering_suboption = (hovering_suboption + 1) % len(chosen_choice)
                 elif key == 'ENTER':
-                    if not selecting:
-                        selecting = True
-                        selected_option = list(options.keys())[hovering]
-                        hovering_suboption = options[selected_option].index(current[selected_option])
-                    elif selecting:        
-                        current_option = list(options.keys())[hovering]
-                        chosen_suboption = options[current_option][selected_option]
-                        current[current_option] = chosen_suboption
+                    if not choosing:
+                        selected_option = list(choices.keys())[hovering]
+                        choosing = choices[selected_option].index(current[selected_option])
+                    else:        
+                        current_option = list(choices.keys())[hovering]
+                        chosen_choice = choices[current_option][choosing]
+                        original_choice = choices[current_option]
+                        changed[current_option] = chosen_choice
+                        Menus._actions.append(changed)
+                        current[current_option] = chosen_choice
+
                         changes_made = True
-                        selecting = False
-                        selected_option = None
+                        choosing = None
                 elif key == 'RIGHT':
-                    if not selecting and not exiting: 
-                        selecting = True
+                    if not choosing and not exiting: 
+                        choosing = True
                     elif exiting:
                         exiting = False
                 elif key == 'LEFT':
-                    if not selecting and not exiting: 
+                    if not choosing and not exiting: 
                         exiting = True
-                    elif selecting: 
-                        selecting = False
+                    elif choosing: 
+                        choosing = False
                         selected_option = None 
                     elif exiting:
                         break 
+                elif key == 'u' or 'U':
+                    prev_change = Menus._actions.pop()
+                    for option, prev_choice in prev_change:
+                        current[option] = prev_choice
+
                 elif key == 'ESC':
-                    if not selecting: 
-                        return original
-                    elif selecting:
-                        current_option = list(options.keys())[hovering]
-                        chosen_suboption = options[current_option][selected_option]
-                        current[current_option] = chosen_suboption
-                        changes_made = True
-                        selecting = False
-                        selected_option = None
+                    if not exiting: 
+                        break
+                    if exiting:
+                        break
+
         finally:
             sys.stdout.write(format["_.SHOW_CURSOR"] + format["_.EXIT_ALTERNATE_SCREEN"])
             Menus.close_menu()
