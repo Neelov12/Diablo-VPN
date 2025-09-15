@@ -36,6 +36,7 @@ class Menus:
                 Terminal.dev_error("Improper use of menu, if calling with current and choices, don't call option_names")
             
             for option_name, choices in choices.items():
+                print(option_name)
                 options[option_name] = {"current" : current[option_name]}
                 type = "dropdown"
                 if isinstance(choices, list):
@@ -153,6 +154,52 @@ class Menus:
         Menus._make_menu_footer(instr, instr_len, rshift)
 
     @staticmethod
+    def _set_style(side, state, type, color="star"):
+        if type == "color" or "color-bold":
+            style = {}
+            style[type] = color
+            Menus._add_cache(f"_.STYLE_{side}_{state}", style)
+        else:
+            Menus._add_cache(f"_.STYLE_{side}_{state}", type)
+
+    @staticmethod
+    def _get_style(msg, side, state):
+        """ Obtain correct ansi of line in menu based on format specification, store in format as cache after first call """
+
+        style = Menus._get_cache(f"_.STYLE.{side}.{state}")
+        if not style: 
+            return msg
+
+        if isinstance(style, dict):
+            if "color" in style:
+                color = style["color"]
+                styled_line = Terminal.get_color(msg, color)
+            elif "color-bold" in style:
+                color = style["color-bold"]
+                styled_line = Terminal.get_color_bold(msg, color)
+        else:
+            style = str(style)
+            if style == "bold":
+                styled_line = Terminal.get_bold(msg)
+            elif style == "dim":
+                styled_line = Terminal.get_dim(msg)   
+            elif style == "reverse-bold":
+                styled_line = Terminal.get_reverse_bold(msg)
+
+        return styled_line
+
+    @staticmethod
+    def _get_line(option_name, state, option_format=None, choice_format=None):
+        var_name = f"_.LINE.{state}.{option_name}"
+        line = Menus._get_cache(var_name)
+        if line:
+            return line
+        left = Menus._get_style(option_format, "left", state)
+        right = Menus._get_style(choice_format, "right", state)
+        Menus._add_cache(var_name, f"{left} : {right}")
+        return Menus._add_cache(var_name)
+
+    @staticmethod
     def open_menu():
         Terminal.launch_terminal()
         Terminal.hide_cursor()
@@ -162,6 +209,38 @@ class Menus:
         Menus._clear_cache()
         Terminal.close_terminal()
         Terminal.show_cursor()
+    
+    @staticmethod
+    def _draw_footer():
+        footer_msg = Menus._get_cache("_.FOOTER")
+        footer_len = Menus._get_cache("_.FOOTER_LEN", len)
+        right_shift = Menus._get_cache("_.FOOTER_RSHIFT")
+
+        cols, rows = shutil.get_terminal_size()
+        if right_shift:
+            start_col = max(1, cols - footer_len + 1)
+        else:
+            start_col = 0
+
+        Terminal.write_at(rows, start_col, footer_msg)
+
+    @staticmethod 
+    def _dropdown(choosing, option_name, option_format, current_choice, options, lines):
+        """ Simple dropdown option, user chooses from a set of options, starts at current option """
+        choices = options[option_name]["choices"]
+        choice_index = choices.index(current_choice)
+        left_format = Menus._get_style(option_format, "left", "choosing")
+        pad = " "*26
+
+        for i in range(0, len(choices)):
+            from_current_index = (i + choice_index) % len(choices)
+
+            if choosing == from_current_index:
+                left = left_format if i == 0 else pad
+                lines.append(f"{left} : {Menus._get_style(choices[from_current_index], "right", "choosing")}")
+            else: 
+                left = left_format if i == 0 else pad
+                lines.append(f"{left} : {choices[from_current_index]}")
 
     @staticmethod 
     def _draw_menu(hovering, choosing, options):
@@ -170,44 +249,37 @@ class Menus:
         header_lines = Menus._get_cache("_.HEADER").split("\n")
         for line in header_lines:
             lines.append(line)
-        keys = list(current.keys())
-        for i, option in enumerate(keys):
-            option = str(option)
-            left = f"{option.replace('_', " ").capitalize():>26}"
-            sub_option = str(current[option])
-            right = sub_option
+        options_list = list(options.keys())
+        for i, option in enumerate(options_list):
+            option_name = str(option)
+            option_format = f"{option_name.replace('_', " ").capitalize():>26}"
+            current_choice = str(options[option_name]["current"])
             
             if i == hovering:
-                if not selected_option:
-                    lines.append(Terminal.get_reverse_bold(f"{left} : {right}"))
-                elif selected_option == option: 
-                    type_of = format["_TYPES"]
-                    type = type_of[option]
+                if not choosing:
+                    lines.append(Terminal.get_reverse_bold(f"{option_format} : {current_choice}"))
+                else: 
+                    type = options[option_name]["type"]
                     if type == "dropdown":
-                        Terminal._draw_dropdown(left, right, selected_option, options, hovering_suboption, lines)
-                        for i in range(0, len(keys) - i):
-                            lines.append("")
+                        Menus._dropdown(choosing, option_name, option_format, current_choice, options, lines)
 
             else: 
-                if not selected_option:
-                    left = Terminal._get_styled(option, left, format, default="_LEFT")
-                    right = Terminal._get_styled(sub_option, right, format, default="_RIGHT")
-                    lines.append(f"{left} : {right}")
-            
+                if not choosing:
+                    lines.append(Menus._get_line(option_name, "hovering", option_format, current_choice))
             
         for i in range(5):
             lines.append("")
 
         sys.stdout.write(format["_.CLEAR_SCREEN"] + format["_.MOVE_CURSOR_HOME"])
+        Terminal.clear()
+        Terminal.move_cursor_home()
         
         for line in lines: 
-            sys.stdout.write(f"{line}\n")
+            Terminal.sys_write(f"{line}\n")
 
-        if not selected_option:
-            Terminal._draw_instruction("_INSTRUCTION_HOME", format)
-        elif selected_option:
-            Terminal._draw_instruction("_INSTRUCTION_SELECTING", format)
-        sys.stdout.flush()
+        Menus._draw_footer()
+        
+        Terminal.flush()
 
     
     @staticmethod
@@ -216,6 +288,9 @@ class Menus:
         Menus._setup_menu_environment(options, current=current, choices=choices)
         Menus._make_menu_header("Settings")
         Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save", msg="| [Enter][→] Select | [↑][↓] Change")
+        Menus._set_style("left", "hovering", "bold")
+        Menus._set_style("left", "choosing", "color-bold")
+        Menus._set_style("right", "choosing", "reverse")
 
         hovering = 0
         choosing = None
@@ -269,6 +344,7 @@ class Menus:
                 elif key == 'u' or 'U':
                     prev_change = Menus._actions.pop()
                     for option, prev_choice in prev_change:
+                        options[option]["current"] = prev_choice
                         current[option] = prev_choice
 
                 elif key == 'ESC':

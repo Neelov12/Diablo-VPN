@@ -343,7 +343,7 @@ class Settings:
         Settings.find_settings_options(current, choices)
         original = choices.copy()
         #Terminal.launch_menu("Settings", choices, current, formatting)
-        Menus.open_settings_menu()
+        Menus.open_settings_menu(current, choices)
         """
         # Convert readable config dictionary to an actual json 
         new_config = {}
