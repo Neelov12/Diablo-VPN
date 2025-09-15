@@ -82,6 +82,10 @@ class Terminal:
     def get_dim(msg):
         return f"\x1b[2m{msg}\x1b[0m"
     
+    @staticmethod
+    def get_underline(msg):
+        return f"\x1b[4m{msg}\x1b[0m"
+    
     @staticmethod 
     def get_color(msg, color=None, rgb=None):
         if not color and not rgb:
@@ -129,6 +133,14 @@ class Terminal:
             print(Terminal._findansi(msg, Terminal.preset[color]))
         elif rgb: 
             print(Terminal._findansi(msg, rgb))
+    
+    @staticmethod
+    def sys_write(msg):
+        sys.stdout.write(msg)
+    
+    @staticmethod
+    def flush():
+        sys.stdout.flush()
 
     @staticmethod
     def log(msg):
@@ -143,7 +155,7 @@ class Terminal:
         print(f"{msg_type} {msg_coded}")
 
     @staticmethod
-    def error(msg, exit=False):
+    def error(msg, exit=True):
         msg_type = Terminal._get_ansi_cb("[-] Error:", Terminal.preset["red"])
         msg_coded = Terminal._findansi(msg, Terminal.preset["red"])
         print(f"{msg_type} {msg_coded}")
@@ -151,7 +163,7 @@ class Terminal:
             sys.exit(1)
     
     @staticmethod
-    def dev_error(msg, exit=False):
+    def dev_error(msg, exit=True):
         msg_type = Terminal._get_ansi_cb("[-] Developer Error:", Terminal.preset["red"])
         msg_coded = Terminal._findansi(msg, Terminal.preset["white"])
         sys.stdout.write(f"{msg_type} {msg_coded}")
@@ -280,10 +292,64 @@ class Terminal:
         
         return response, yes
     
+    """ Terminal Screen Control """
+    @staticmethod
+    def clear():
+        sys.stdout.write("\x1b[2J")
+
+    @staticmethod
+    def launch_terminal():
+        sys.stdout.write("\x1b[?1049h")
+    
+    @staticmethod
+    def close_terminal():
+        sys.stdout.write("\x1b[?1049l")
+
+    """ Cursor Controls """
+    @staticmethod 
+    def hide_cursor():
+        sys.stdout.write("\x1b[?25l")
+    
+    @staticmethod 
+    def show_cursor():
+        sys.stdout.write("\x1b[?25h")
+
+    @staticmethod 
+    def save_cursor():
+        sys.stdout.write("\x1b 7") 
+
+    @staticmethod 
+    def restore_cursor():
+        sys.stdout.wriet("\x1b 8")
+
+    @staticmethod
+    def move_cursor_home():
+        sys.stdout.write("\x1b[H")  
+    
+    def move_cursor(line, col):
+        sys.stdout.write(f"\x1b[{line};{col}H")
+
+    @staticmethod 
+    def move_cursor_up(lines=None):
+        if lines:
+            sys.stdout.write(f"\x1b[{lines}A")
+        else:
+            sys.stdout.write("\x1b[A")
+            
+    @staticmethod 
+    def move_cursor_up(lines=None):
+        if lines:
+            sys.stdout.write(f"\x1b[{lines}B")
+        else:
+            sys.stdout.write("\x1b[B")   
+    @staticmethod
+    def write_at(row, col, msg):
+        sys.stdout.write(f"\x1b[{row};{col}H{msg}\x1b[0m")
+    
     """ Terminal UI - Menu Support """
 
     @staticmethod
-    def read_control_key(timeout=0.1):
+    def read_control_key(other_keys=[],timeout=0.1):
         """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
         fd = sys.stdin.fileno()
         # Save old terminal read settings to restore, we are now reading raw bytes 
@@ -309,6 +375,8 @@ class Terminal:
                     return 'ENTER'
                 elif ch1 == '\x7f' or ch1 == '\x08':
                     return 'DELETE'
+                elif ch1 in other_keys:
+                    return ch1
                 else:
                     return None  
         finally:
@@ -635,7 +703,9 @@ class Terminal:
         changes_made = False
         key = None
         """ Launch alternate terminal instead of normal """
-        sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] + format["_.HIDE_CURSOR"])
+        #sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] + format["_.HIDE_CURSOR"])
+        sys.stdout.write(format["_.ENTER_ALTERNATE_SCREEN"] )
+        sys.stdout.write(format["_.HIDE_CURSOR"])
         try:
             while True: 
                 Terminal._draw_menu(hovering, selected_option, exiting, hovering_suboption, options, current, format)

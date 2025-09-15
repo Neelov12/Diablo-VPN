@@ -27,9 +27,9 @@ class Settings:
         \t'[ABOVE]:MAX:[maximum]' : To set a non-default max characters allowed for input (default is 24)
         \t'[ABOVE]:MIN:[minimum]' : To set a non-default min characters allowed for input (default is 0) 
         \t                          Can be combined, ie _.TEXT:MIN:3:MAX:5
-        It is VERY important to use these naming conventions exactly. Failure to do so could open up your modified Diablo
-        program to security vulnerabilities. Obviously, if your intention is not to input text, don't name a settings choice
-        the above naming conventions. 
+        It is VERY important to use these naming conventions exactly. If you don't you could open up your modified Diablo
+        program to security vulnerabilities. Also, DON'T make a custom setting option that starts with '_.'. The program 
+        might do weird things.   
         If you want to give a user the option of several choices or a custom text input, you can add a list to 
         'Settings.none_bool_options' with:
         \t[ \"._DEFAULT:[Your default choice]\", \"._TEXT[Possible Type]\" ]                       
@@ -44,30 +44,13 @@ class Settings:
         """
     )
 
-{
-  "require_password": true,
-  "log_level": "info",
-  "accept_new_connections": true,
-  "max_clients": "unlimited",
-  "default_server_ip": "10.8.0.1",
-  "bind_interface": "tun0",
-  "monitor_arp_requests": true,
-  "block_arp_requests": true,
-  "manipulate_arp_response": false,
-  "monitor_ports": true,
-  "filtered_ports": [],
-  "blocked_ports": [53,67,68],
-  "persistant_auditing": true,
-  "spoof_arp": false,
-  "lockdown_mode": false,
-  "aggressive_auditing": false
-}
-
     none_bool_options = {
+        "name": "_.TEXT",
         "log_level": ["debug", "info", "warning", "error"],
-        "default_server_ip": ["10.8.0.1"],
-        "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
-        "blocked_ports": [53, 67, 68],   
+        "default_server_ip": ["._DEFAULT:10.8.0.1", "._TEXT_IP_ADDRESS"],
+        "max_clients": ["._DEFAULT:Unlimited", "._TEXT_INT"],
+        "filtered_ports" : "_.LIST_PORT",
+        "blocked_ports": "_.LIST_PORT",   
         "bind_interface": ["tun0"],
     }
     
@@ -117,12 +100,22 @@ class Settings:
 
         current_config = Settings.load_config()
 
+        option_added = False
         for key in current_config:
             if not key in default_config:
+                option_added = True
+                Terminal.warn(f"DEVELOPER WARNING: It seems like you've added \'{key}\' as a setting option.")
                 Terminal.warn(Settings.developer_warning)
                 with open(Settings.DEFAULT_CONFIG_PATH, "r") as f_default, open(Settings.CONFIG_PATH, "w") as f_target: 
                     f_target.write(f_default.read())
-        
+
+        if option_added:
+            Terminal.warn(dedent(f"""
+                DEVELOPER WARNING: It seems like you've added '{key}' as a setting option. 
+                                   You will need to add the logic for this option to your modified Diablo code or 
+                                   program will not work. Also, if your setting option is not a bool, you will need
+                                   to adjust 'Settings.none_bool_options' accordingly. 
+                """))
     @staticmethod 
     def _validate_choice(choice, possible_choice):
         if possible_choice.startswith("_.TEXT"):
@@ -136,6 +129,22 @@ class Settings:
             else: 
                 if not isinstance(choice, str):
                     return False
+        elif possible_choice.startswith("_.LIST"):
+            text_rule = possible_choice
+            if choice:
+                if text_rule == "_.LIST_INT":
+                    for c in choice:
+                        if not isinstance(c, int):
+                            return False
+                elif text_rule == "_.LIST_FLOAT":
+                    for c in choice:
+                        if not isinstance(c, float):
+                            return False    
+                else: 
+                    for c in choice:
+                        if not isinstance(choice, str):
+                            return False
+
         return True
                          
 
@@ -183,25 +192,18 @@ class Settings:
             default_config = json.load(f)
 
     @staticmethod
-    def find_settings_options(current, options):
+    def find_settings_options(current, choices):
 
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
             default_config = json.load(f)
 
         Settings.validate_default_choices(default_config)
 
-        none_bool_options = {
-            "log_level": ["debug", "info", "warning", "error"],
-            "default_server_ip": ["10.8.0.1"],
-            "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
-            "blocked_ports": [53, 67, 68],   
-            "bind_interface": ["tun0"],
-        }
         for setting, choice in default_config.items():
             if setting in Settings.none_bool_options:
-                options[setting] = Settings.none_bool_options[setting]
+                choices[setting] = Settings.none_bool_options[setting]
             elif isinstance(choice, bool):
-                options[setting] = ["Yes", "No"]
+                choices[setting] = ["Yes", "No"]
 
         current_config = Settings.load_config()
         current = {}
@@ -218,6 +220,7 @@ class Settings:
     @staticmethod
     def settings_menu():
         """ Launches terminal menu for user to change settings """
+        from .menus import Menus
 
         Settings.validate_config()
         """ Set setting options, non-specified default to yes/no """
@@ -335,11 +338,12 @@ class Settings:
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
             default_config = json.load(f)
 
-        options = {}
+        choices = {}
         current = {}
-        Settings.find_settings_options(current, options)
-        Terminal.launch_menu("Settings", options, current, formatting)
-
+        Settings.find_settings_options(current, choices)
+        original = choices.copy()
+        #Terminal.launch_menu("Settings", choices, current, formatting)
+        Menus.open_settings_menu()
         """
         # Convert readable config dictionary to an actual json 
         new_config = {}
