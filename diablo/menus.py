@@ -21,6 +21,7 @@ class Menus:
     @staticmethod
     def _clear_cache():
         Menus._cache.clear()
+
     @staticmethod
     def _add_cache(name, var):
         Menus._cache[f".TMP.{name}"] = var
@@ -32,6 +33,17 @@ class Menus:
             return Menus._cache[f".TMP.{name}"]
         else:
             return None
+        
+    @staticmethod
+    def _delete_cache_group(var):
+        for group in Menus._cache.keys():
+            if group.startswith(var):
+                Menus._cache.pop(var, None)
+    
+    @staticmethod
+    def _print_cache():
+        Terminal.write("\nSETTINGS CACHE", "star")
+        Terminal.pretty(Menus._cache)
     
     @staticmethod
     def _setup_menu_environment(options, option_names=None, current=None, choices=None):
@@ -41,8 +53,6 @@ class Menus:
             
             for option_name, _choices in choices.items():
                 options[option_name] = ""
-                print(option_name)
-                pprint.pprint(current)
                 type = "dropdown"
                 if isinstance(_choices, list):
                     type = "dropdown"
@@ -149,6 +159,44 @@ class Menus:
         Menus._add_cache("_.FOOTER_RSHIFT", right_shift)
 
     @staticmethod
+    def _draw_header(lines):
+        header_lines = Menus._get_cache("_.HEADER")
+        if header_lines is None:
+            return
+        else:
+            header_lines = header_lines.split("\n")
+            for line in header_lines:
+                lines.append(line)
+    
+    @staticmethod
+    def _draw_footer():
+        footer_msg = Menus._get_cache("_.FOOTER")
+        if footer_msg is None:
+            return
+        footer_len = Menus._get_cache("_.FOOTER_LEN")
+        right_shift = Menus._get_cache("_.FOOTER_RSHIFT")
+
+        cols, rows = shutil.get_terminal_size()
+        if right_shift:
+            start_col = max(1, cols - footer_len + 1)
+        else:
+            start_col = 0
+
+        Terminal.write_at(rows, start_col, footer_msg)
+
+    @staticmethod
+    def _draw_line(option_name, mode, lines):
+        var = f"{mode}.{option_name}"
+        line = Menus._get_cache(var)
+        if line is None:
+            Terminal.warn(f"Tried to draw line for {option_name} but couldn't find cache.")
+            return
+        else:
+            possible_lines = line.split("\n")
+            for line in possible_lines:
+                lines.append(line)
+
+    @staticmethod
     def _update_instruction(color_bold_msg=None, color_msg=None, bold_msg=None, msg=None, color="star", rshift=True):
         instr = ""
         instr_len = 0
@@ -167,50 +215,68 @@ class Menus:
         Menus._make_menu_footer(instr, instr_len, rshift)
 
     @staticmethod
-    def _set_style(side, state, type, color="star"):
-        if type == "color" or "color-bold":
-            style = {}
-            style[type] = color
-            Menus._add_cache(f"_.STYLE_{side}_{state}", style)
-        else:
-            Menus._add_cache(f"_.STYLE_{side}_{state}", type)
+    def _set_text_prompt(options, hovering, choosing, padding=10):
+        option_name = list(options.keys())[hovering]
+        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
+        pad = " "*padding
+        choices_list = list(options[option_name]["choices"])
 
-    @staticmethod
-    def _get_style(msg, side, state):
-        """ Obtain correct ansi of line in menu based on format specification, store in format as cache after first call """
+        mode = "choosing-hovering"
+        left = current_opt_format if i == choosing else pad
+        #Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {Terminal.get_reverse_bold(choices_list[i])}")
+        Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : ")
+        mode = "choosing"
+        Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : ")        
 
-        style = Menus._get_cache(f"_.STYLE.{side}.{state}")
-        if not style: 
-            return msg
+    @staticmethod 
+    def _set_dropdown(options, hovering, choosing, padding=10):
+        option_name = list(options.keys())[hovering]
+        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
+        pad = " "*padding
+        choices_list = list(options[option_name]["choices"])
+        for i in range(0, len(choices_list)):
+            mode = "choosing-hovering"
+            left = current_opt_format if i == choosing else pad
+            Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {Terminal.get_reverse_bold(choices_list[i])}")
+            mode = "choosing"
+            Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {choices_list[i]}")
 
-        if isinstance(style, dict):
-            if "color" in style:
-                color = style["color"]
-                styled_line = Terminal.get_color(msg, color)
-            elif "color-bold" in style:
-                color = style["color-bold"]
-                styled_line = Terminal.get_color_bold(msg, color)
-        else:
-            style = str(style)
-            if style == "bold":
-                styled_line = Terminal.get_bold(msg)
-            elif style == "dim":
-                styled_line = Terminal.get_dim(msg)   
-            elif style == "reverse-bold":
-                styled_line = Terminal.get_reverse_bold(msg)
+    @staticmethod 
+    def _draw_menu(hovering, choosing, options):
+        """ Draw and clear memu accordingly to launch_menu """
+        lines = []
+        Menus._draw_header(lines)
 
-        return styled_line
+        options_list = list(options.keys())
+        for i, option in enumerate(options_list):
+            option_name = str(option)
+            option_format = f"{option_name.replace('_', " ").capitalize():>26}"
+            current_choice = str(options[option_name]["current"])
+            
+            if i == hovering:
+                if choosing is None:
+                    Menus._draw_line(option_name, "hovering", lines)
+                else: 
+                    choices_list = list(options[option_name]["choices"])
+                    for j, choice in enumerate(choices_list):
+                        if j == choosing:
+                            Menus._draw_line(f"{option_name}.{j}", "choosing-hovering", lines)
+                        else:
+                            Menus._draw_line(f"{option_name}.{j}", "choosing", lines)
+            else: 
+                if choosing is None:
+                    Menus._draw_line(option_name, "not-hovering", lines)
+                else:
+                    Menus._draw_line(option_name, "not-choosing-hovering", lines)
+        for i in range(5):
+            lines.append("")
 
-    @staticmethod
-    def _get_line(option_name, state, option_format=None, choice_format=None):
-        var_name = f"_.LINE.{state}.{option_name}"
-        line = Menus._get_cache(var_name)
-        if line:
-            return line
-        left = Menus._get_style(option_format, "left", state)
-        right = Menus._get_style(choice_format, "right", state)
-        Menus._add_cache(var_name, f"{left} : {right}")
-        return Menus._get_cache(var_name)
+        Terminal.clear()
+        Terminal.move_cursor_home()
+        for line in lines: 
+            Terminal.sys_write(f"{line}\n")
+        Menus._draw_footer()
+        Terminal.flush()
 
     @staticmethod
     def open_menu():
@@ -219,99 +285,67 @@ class Menus:
 
     @staticmethod
     def close_menu():
-        Menus._clear_cache()
         Terminal.close_terminal()
         Terminal.show_cursor()
-    
+        Menus._print_cache()
+        Menus._clear_cache()
+
     @staticmethod
-    def _draw_footer():
-        footer_msg = Menus._get_cache("_.FOOTER")
-        footer_len = Menus._get_cache("_.FOOTER_LEN")
-        right_shift = Menus._get_cache("_.FOOTER_RSHIFT")
+    def update_menu(type, options, hovering, choosing, padding=10):
+        if type == "dropdown":
+            Menus._set_dropdown(options, hovering, choosing, padding)
+        elif type == "text":
+            Menus._set_text_prompt(options, hovering, choosing, padding)
 
-        cols, rows = shutil.get_terminal_size()
-        if right_shift:
-            start_col = max(1, cols - footer_len + 1)
-        else:
-            start_col = 0
-
-        Terminal.write_at(rows, start_col, footer_msg)
-
-    @staticmethod 
-    def _dropdown(choosing, option_name, option_format, current_choice, options, lines):
-        """ Simple dropdown option, user chooses from a set of options, starts at current option """
-        choices = options[option_name]["choices"]
-        choice_index = choices.index(current_choice)
-        left_format = Menus._get_style(option_format, "left", "choosing")
-        pad = " "*26
-
-        for i in range(0, len(choices)):
-            from_current_index = (i + choice_index) % len(choices)
-
-            if choosing == from_current_index:
-                left = left_format if i == 0 else pad
-                lines.append(f"{left} : {Menus._get_style(choices[from_current_index], "right", "choosing")}")
-            else: 
-                left = left_format if i == 0 else pad
-                lines.append(f"{left} : {choices[from_current_index]}")
-
-    @staticmethod 
-    def _draw_menu(hovering, choosing, options):
-        """ Draw and clear memu accordingly to launch_menu """
-        lines = []
-        header_lines = Menus._get_cache("_.HEADER").split("\n")
-        for line in header_lines:
-            lines.append(line)
+    @staticmethod
+    def _set_settings_menu(options, padding=10):
+        padding = 26
         options_list = list(options.keys())
         for i, option in enumerate(options_list):
+            mode = "not-hovering"
             option_name = str(option)
-            option_format = f"{option_name.replace('_', " ").capitalize():>26}"
+            option_format = f"{option_name.replace('_', " ").capitalize():>{padding}}"
             current_choice = str(options[option_name]["current"])
-            
-            if i == hovering:
-                if not choosing:
-                    lines.append(Terminal.get_reverse_bold(f"{option_format} : {current_choice}"))
-                else: 
-                    type = options[option_name]["type"]
-                    if type == "dropdown":
-                        Menus._dropdown(choosing, option_name, option_format, current_choice, options, lines)
+            not_hovering_line = f"{Terminal.get_bold(option_format)} : {current_choice}"
+            Menus._add_cache(f"{mode}.{option_name}", not_hovering_line)
 
-            else: 
-                if not choosing:
-                    lines.append(Menus._get_line(option_name, "hovering", option_format, current_choice))
-            
-        for i in range(5):
-            lines.append("")
+            mode = "hovering"
+            hovering_line = Terminal.get_reverse_bold(f"{option_format} : {current_choice}")
+            Menus._add_cache(f"{mode}.{option_name}", hovering_line)
 
-        Terminal.clear()
-        Terminal.move_cursor_home()
-        
-        for line in lines: 
-            Terminal.sys_write(f"{line}\n")
+            mode = "choosing"
+            Menus._add_cache(f"{mode}.{option_name}", "")
 
-        Menus._draw_footer()
-        
-        Terminal.flush()
+            mode = "choosing-hovering"
+            Menus._add_cache(f"{mode}.{option_name}", "")
 
+            mode = "not-choosing-hovering"
+            Menus._add_cache(f"{mode}.{option_name}", "")
     
+    @staticmethod
+    def _update_settings_menu(options, option_name=None, mode=None, updated=""):
+        if isinstance(options, dict) and option_name is None and mode is None:
+            Menus._set_settings_menu(option_name)
+            return
+        if option_name is not None and mode is not None:
+            Menus._add_cache(f".TMP.{mode}.{option_name}", updated)
+
     @staticmethod
     def open_settings_menu(current, choices):
         options = {}
-        pprint.pprint(current)
+        padding = 26
         Menus._setup_menu_environment(options, current=current, choices=choices)
         Menus._make_menu_header("Settings")
-        Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save", msg="| [Enter][→] Select | [↑][↓] Change")
-        Menus._set_style("left", "hovering", "bold")
-        Menus._set_style("left", "choosing", "color-bold")
-        Menus._set_style("right", "choosing", "reverse")
+        Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save | [Enter][→] Select", msg=" | [↑][↓] Change")
+        Menus._set_settings_menu(options, padding)
+        Menus.open_menu()
 
         hovering = 0
         choosing = None
         exiting = False
+        possible_choices = None
         menu_size = len(choices)
         changed = {}
-        pprint.pprint(options)
-        Menus.open_menu()
         try:
             while True: 
                 Menus._draw_menu(hovering, choosing, options)
@@ -320,46 +354,45 @@ class Menus:
                     continue
                 
                 if key == 'UP':
-                    if not choosing: 
+                    if choosing is None: 
                         hovering = (hovering - 1) % menu_size
                     else:
-                        choosing = (choosing - 1) % len(chosen_choice)
+                        choosing = (choosing - 1) % len(possible_choices)
                 elif key == 'DOWN':
-                    if not choosing:
+                    if choosing is None:
                         hovering = (hovering + 1) % menu_size
                     else:
-                        hovering_suboption = (hovering_suboption + 1) % len(chosen_choice)
-                elif key == 'ENTER':
-                    if not choosing:
-                        selected_option = list(choices.keys())[hovering]
-                        print("SHITSTAIN")
-                        #print(selected_option)
-                        #pprint.pprint(current)
-                        #pprint.pprint(choices)
-                        choosing = choices[selected_option].index(current[selected_option])
+                        choosing = (choosing + 1) % len(possible_choices)
+                elif key == 'ENTER' or key == 'RIGHT':
+                    if choosing is None:
+                        selected_option = list(options.keys())[hovering]
+                        possible_choices = options[selected_option]["choices"]
+                        choosing = possible_choices.index(options[selected_option]["current"])
+                        type = options[selected_option]["type"]
+                        Menus.update_menu(type, options, hovering, choosing, padding=padding)
+                        Menus._update_instruction(color_bold_msg="[←] Back", bold_msg=" | [Enter][→] Select")
                     else:        
-                        current_option = list(choices.keys())[hovering]
-                        chosen_choice = choices[current_option][choosing]
-                        original_choice = choices[current_option]
-                        changed[current_option] = chosen_choice
-                        Menus._actions.append(changed)
-                        current[current_option] = chosen_choice
-
+                        selected_option = list(options.keys())[hovering]
+                        chosen_choice = options[selected_option]["choices"][choosing]
+                        options[selected_option]["current"] = chosen_choice
                         changes_made = True
                         choosing = None
-                elif key == 'RIGHT':
-                    if not choosing and not exiting: 
-                        choosing = True
-                    elif exiting:
-                        exiting = False
+                        possible_choices = None
+                        Menus._set_settings_menu(options, padding)
+                        Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save | [Enter][→] Select", msg=" | [↑][↓] Change")
+
                 elif key == 'LEFT':
-                    if not choosing and not exiting: 
-                        exiting = True
-                    elif choosing: 
-                        choosing = False
-                        selected_option = None 
+                    if choosing is None: 
+                        break
+                    elif choosing is not None: 
+                        choosing = None
+                        possible_choices = None
+                        Menus._set_settings_menu(options, padding)
+                        Menus._update_instruction(color_bold_msg="[Esc] Quit", bold_msg=" | [←] Save | [Enter][→] Select", msg=" | [↑][↓] Change")
+
                     elif exiting:
                         break 
+
                 elif key == 'u' or 'U':
                     prev_change = Menus._actions.pop()
                     for option, prev_choice in prev_change:
@@ -368,8 +401,8 @@ class Menus:
 
                 elif key == 'ESC':
                     if not exiting: 
-                        break
-                    if exiting:
+                        exiting = True
+                    elif exiting:
                         break
 
         finally:

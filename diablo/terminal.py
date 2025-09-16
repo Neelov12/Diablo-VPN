@@ -141,6 +141,10 @@ class Terminal:
     @staticmethod
     def flush():
         sys.stdout.flush()
+    
+    @staticmethod
+    def pretty(msg):
+        pprint.pprint(msg)
 
     @staticmethod
     def log(msg):

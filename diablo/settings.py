@@ -5,6 +5,7 @@ from textwrap import dedent
 from pathlib import Path
 from importlib.resources import files
 from .terminal import Terminal 
+import pprint
 
 class Settings: 
 
@@ -177,8 +178,7 @@ class Settings:
                         if not isinstance(choice, str):
                             return False
 
-        return True
-                         
+        return True               
 
     @staticmethod
     def validate_default_choices(default_config):
@@ -238,6 +238,7 @@ class Settings:
                 choices[setting] = ["Yes", "No"]
 
         current_config = Settings.load_config()
+        pprint.pprint(current_config)
         for setting, choice in current_config.items():
             if isinstance(choice, bool):
                 if choice == True: 
@@ -246,124 +247,15 @@ class Settings:
                     current[setting] = "No"
             else:
                 # Catch anything else that isn't explicitly handled
-                current[setting] = str(setting)
+                current[setting] = str(choice)
 
     @staticmethod
     def settings_menu():
         """ Launches terminal menu for user to change settings """
         from .menus import Menus
+        import pprint
 
         Settings.validate_config()
-        """ Set setting options, non-specified default to yes/no """
-        # None yes / no setting
-        """ Set selection types, non-specified default to 'dropdown' """
-
-        formatting = {
-            "_OPTIONS" : {
-                "log_level": ["debug", "info", "warning", "error"],
-                "default_server_ip": ["10.8.0.1"],
-                "max_clients": ["unlimited", "10", "15", "25", "100", "500"],
-                "blocked_ports": [53, 67, 68],   
-                "bind_interface": ["tun0"],
-            },
-            "_TYPES" : {
-                "max_clients" : "text-ip",
-                "default_server_ip" : "text-ip",
-                "filtered_ports" : "list-int",
-                "blocked_ports" : "list-int",
-            },
-            "_WARNINGS" : {
-                "required_password" : {
-                    "no" : "Disabling this option leaves you unprotected to unknown connections."
-                },
-                "spoof_arp" : {
-                    "yes" : "Only use this option on a network you own or are authorized to audit."
-                },
-                "spoof_arp" : {
-                    "yes" : "Only use this option on a network you own or are authorized to audit."
-                },
-                "lockdown_mode" : {
-                    "yes" : "Enabling lockdown mode will prevent any new connections."
-                },
-                "aggressive_auditing" : {
-                    "yes" : "Only use this option on a network you own or are authorized to audit."
-                },   
-            },
-            "_RULES" : {
-                "filtered_ports" : {
-                    "_min" : 0,
-                    "_max" : 65535
-                },
-                "blocked_ports" : {
-                    "_min" : 0,
-                    "_max" : 65535
-                },
-                "default_server_ip" : "_ip_address",
-            },
-            "_PARENTS" : {
-                "monitor_arp_requests": {
-                    "no" : ["block_arp_requests", "manipulate_arp_response"],
-                },
-                "block_arp_requests": {
-                    "yes" : "monitor_arp_requests"
-                },
-                "manipulate_arp_response" : {
-                    "yes" : "monitor_arp_requests"
-                },
-                "persistant_auditing" : {
-                    "no" : ["spoof_arp", "lockdown_mode", "aggressive_auditing"],
-                },
-                "spoof_arp" : {
-                    "yes": "persistant_auditing"
-                },
-                "lockdown_mode" : {
-                    "yes": "persistant_auditing"
-                },
-                "aggressive_auditing" : {
-                    "yes": "persistant_auditing"
-                },
-            },
-            "_DEFAULTS" : {
-                "_INSTRUCTION_LEFT" : {
-                    "_" : "[←] Save & Exit",
-                    "_STYLE" : "bold"
-                },
-                "_INSTRUCTION_UP_DOWN" : "[↑][↓] Change",
-                "_INSTRUCTION_ESCAPE" : {
-                    "_" : "[Esc] Quit",
-                    "_STYLE" : {
-                        "color-bold" : "star"
-                    }
-                },      
-            },
-            "_INSTRUCTION_HOME" : {
-                "_ORDER" : ["_INSTRUCTION_ESCAPE", "_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_RIGHT", "_INSTRUCTION_UP_DOWN"],
-                "_INSTRUCTION_ENTER" : "[Enter]",
-                "_INSTRUCTION_RIGHT" : "[→] Select",
-            },
-            "_INSTRUCTION_SELECTING" : {
-                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER", "_INSTRUCTION_UP_DOWN"],
-                "_INSTRUCTION_LEFT" : {
-                    "_" : "[←] Back",
-                    "_STYLE" : "bold"
-                },
-                "_INSTRUCTION_ENTER" : "[Enter] Select",
-                "_INSTRUCTION_ESCAPE" : {
-                    "_" : "[Esc] Back",
-                    "_STYLE" : {
-                        "color-bold" : "star"
-                    }
-                }, 
-            },
-            "_INSTRUCTION_CONFIRMING" : {
-                "_ORDER" : ["_INSTRUCTION_LEFT", "_INSTRUCTION_ENTER"],
-                "_INSTRUCTION_ENTER" : "[Enter] Confirm",
-            },
-            "_INSTRUCTION_EXITING": {
-                "_ORDER" : ["_INSTRUCTION_LEFT", "INSTRUCTION_RIGHT"],
-                "_INSTRUCTION_RIGHT" : "[→] Return"
-            },
-        }
         
         # Infers yes / no settings based on if it's a bool 
         with open(Settings.DEFAULT_CONFIG_PATH) as f:
