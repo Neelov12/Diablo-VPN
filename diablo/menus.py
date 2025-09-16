@@ -1,14 +1,8 @@
 import sys 
 from datetime import datetime
-import time
-import threading
-import termios
-import tty
-import select
 import shutil 
 from textwrap import dedent
-import pprint
-import re
+import string
 from importlib.resources import files
 from collections import deque
 from .terminal import Terminal 
@@ -137,7 +131,7 @@ class Menus:
                     
                     options[option_name] = {
                             "current" : current[option_name],
-                            "choices" : None,
+                            "choices" : ["_.INPUT"],
                             "type" : type,
                             "rules" : rules
                     }
@@ -214,32 +208,6 @@ class Menus:
             instr+= msg
         Menus._make_menu_footer(instr, instr_len, rshift)
 
-    @staticmethod
-    def _set_text_prompt(options, hovering, choosing, padding=10):
-        option_name = list(options.keys())[hovering]
-        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
-        pad = " "*padding
-        choices_list = list(options[option_name]["choices"])
-
-        mode = "choosing-hovering"
-        left = current_opt_format if i == choosing else pad
-        #Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {Terminal.get_reverse_bold(choices_list[i])}")
-        Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : ")
-        mode = "choosing"
-        Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : ")        
-
-    @staticmethod 
-    def _set_dropdown(options, hovering, choosing, padding=10):
-        option_name = list(options.keys())[hovering]
-        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
-        pad = " "*padding
-        choices_list = list(options[option_name]["choices"])
-        for i in range(0, len(choices_list)):
-            mode = "choosing-hovering"
-            left = current_opt_format if i == choosing else pad
-            Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {Terminal.get_reverse_bold(choices_list[i])}")
-            mode = "choosing"
-            Menus._add_cache(f"{mode}.{option_name}.{i}", f"{left} : {choices_list[i]}")
 
     @staticmethod 
     def _draw_menu(hovering, choosing, options):
@@ -278,6 +246,82 @@ class Menus:
         Menus._draw_footer()
         Terminal.flush()
 
+
+    @staticmethod
+    def _set_text_prompt(options, hovering, choosing, padding=10, max=24, max_int=None, int_mode=False, ip_mode =False, port_mode=False):
+        option_name = list(options.keys())[hovering]
+        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
+        place_holder = Terminal.get_reverse(" ")
+        text = ""
+        if port_mode:
+            int_mode = True
+            max = 5
+            max_int = 65535
+        elif ip_mode:
+            max = 15
+
+        mode = "choosing-hovering"
+        Menus._add_cache(f"{mode}.{option_name}.0", f"{current_opt_format} : {text}{place_holder}")
+        try:
+            while True:
+                Menus._draw_menu(hovering, choosing, options)
+                key = Terminal.read_key()
+
+                if not key:
+                    continue
+                if key == 'ENTER':
+                    if int_mode and max_int is not None:
+                        if int(text) > max_int:
+                            text = ""
+                            continue
+                    elif ip_mode:
+                        octets = text.split('.')
+                        if len(octets) != 4:
+                            text = ""
+                            continue
+                        for oct in octets:
+                            if not oct.isdigit():
+                                text = ""
+                                continue
+                            if int(oct) < 0 or int(oct) > 255:
+                                text = ""
+                                continue
+
+                    options[option_name]["current"] = text
+                    return
+                elif key == 'DELETE': 
+                    text = text[:-1]
+                elif key == 'ESC':
+                    return
+                elif key in string.printable and key not in ("\n", "\r", "\x0b", "\x0c"):
+                    if len(text) <= max:
+                        if len(text) == 0 and key == '_' or key == '.':
+                            continue
+                        elif int_mode and not key.isdigit():
+                            continue
+                        else:
+                            text = f"{text}{key}"
+                    else:
+                        continue
+        
+                Menus._add_cache(f"{mode}.{option_name}.0", f"{current_opt_format} : {text}{place_holder}")
+        finally:
+            return
+
+    @staticmethod 
+    def _set_dropdown(options, hovering, choosing, padding=10):
+        option_name = list(options.keys())[hovering]
+        current_opt_format = Terminal.get_color_bold(f"{option_name.replace('_', " ").capitalize():>{padding}}", "star")
+        pad = " "*padding
+        choices_list = list(options[option_name]["choices"])
+        for i in range(0, len(choices_list)):
+            mode = "choosing-hovering"
+            left = current_opt_format if i == choosing else pad
+            adjusted_i = (choosing - i) % len(choices_list)
+            Menus._add_cache(f"{mode}.{option_name}.{adjusted_i}", f"{left} : {Terminal.get_reverse_bold(choices_list[i])}")
+            mode = "choosing"
+            Menus._add_cache(f"{mode}.{option_name}.{adjusted_i}", f"{left} : {choices_list[i]}")
+
     @staticmethod
     def open_menu():
         Terminal.launch_terminal()
@@ -296,6 +340,8 @@ class Menus:
             Menus._set_dropdown(options, hovering, choosing, padding)
         elif type == "text":
             Menus._set_text_prompt(options, hovering, choosing, padding)
+        elif type == "text-ip-address":
+            Menus._set_text_prompt(options, hovering, choosing, padding, ip_mode=True)
 
     @staticmethod
     def _set_settings_menu(options, padding=10):
@@ -345,6 +391,7 @@ class Menus:
         exiting = False
         possible_choices = None
         menu_size = len(choices)
+        changes_made = False
         changed = {}
         try:
             while True: 
@@ -367,14 +414,23 @@ class Menus:
                     if choosing is None:
                         selected_option = list(options.keys())[hovering]
                         possible_choices = options[selected_option]["choices"]
-                        choosing = possible_choices.index(options[selected_option]["current"])
                         type = options[selected_option]["type"]
+                        if type not in {"dropdown"}:
+                            choosing = 0
+                            Menus._update_instruction(color_bold_msg="[Esc] Back | [Enter] Save")
+                        else:
+                            choosing = possible_choices.index(options[selected_option]["current"])
+                            Menus._update_instruction(color_bold_msg="[←] Back", bold_msg=" | [Enter][→] Select")
+
                         Menus.update_menu(type, options, hovering, choosing, padding=padding)
-                        Menus._update_instruction(color_bold_msg="[←] Back", bold_msg=" | [Enter][→] Select")
                     else:        
                         selected_option = list(options.keys())[hovering]
-                        chosen_choice = options[selected_option]["choices"][choosing]
-                        options[selected_option]["current"] = chosen_choice
+                        type = options[selected_option]["type"]
+                        if type not in {"dropdown"}:
+                            pass
+                        else:
+                            chosen_choice = options[selected_option]["choices"][choosing]
+                            options[selected_option]["current"] = chosen_choice
                         changes_made = True
                         choosing = None
                         possible_choices = None
@@ -393,13 +449,15 @@ class Menus:
                     elif exiting:
                         break 
 
-                elif key == 'u' or 'U':
+                elif key == 'u' or key == 'U':
                     prev_change = Menus._actions.pop()
                     for option, prev_choice in prev_change:
                         options[option]["current"] = prev_choice
                         current[option] = prev_choice
 
                 elif key == 'ESC':
+                    if not changes_made:
+                        break
                     if not exiting: 
                         exiting = True
                     elif exiting:
