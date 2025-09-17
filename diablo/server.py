@@ -9,6 +9,7 @@ from .tun import setup_tun_interface
 from .tls_handler import start_tls_server
 from .forwarder import start_forwarding
 from .terminal import Terminal 
+from .auth import Authentication
 from .daemon import daemonize
 from .status import Status
 from .certgen import generate_self_signed_cert
@@ -24,14 +25,18 @@ class Server:
 
     @staticmethod 
     def _check_platform():
+        Terminal.append_animation("Checking platform")
         if platform.system() != 'Linux':
-            Terminal.error("For now, Diablo proxy server (host mode) only works on Linux.")
+            Terminal.replace_animation("For now, Diablo proxy server (host mode) only works on Linux.", failure=True)
             exit()
+        Terminal.replace_animation("Host has valid platform")
         return
     
     @staticmethod
     def _check_if_root():
+        Terminal.append_animation("Checking if host has proper permissions")
         if Status.is_root():
+            Terminal.replace_animation(f"Host is running as {Authentication.root_name}")
             return
         else:
             Terminal.error("You must run as root / administrator to host a Diablo server")
@@ -39,13 +44,12 @@ class Server:
     @staticmethod
     def check_status():
         """ Check status of any background Diablo process, exits if one is running """
-        Terminal.start_animation([Terminal.get_color("[-] Checking Status", "light blue"),
-                                Terminal.get_color("[+] Checking Status", "light blue") ])
+        Terminal.append_animation("Checking status of server")
         if Server.active:
-            Terminal.stop_animation(final=Terminal.get_color("[-] You already have a server running", "red"))
+            Terminal.replace_animation("You already have a server running", failure=True)
             exit()
         else: 
-            Terminal.stop_animation(final=Terminal.get_color("[-] No current running servers. Proceeding.", "green"))
+            Terminal.replace_animation("No current running servers. Proceeding.")
 
             Status.save_status({
                 "mode": Server.mode,
@@ -59,26 +63,23 @@ class Server:
     def start_server():
         Terminal.print_intro()
 
-        title = Terminal.get_color_bold("Starting Server", "star")
+        starting_msg = Terminal.get_color_bold("Starting Server", "star")
         Terminal.newline(2)
-        Terminal.loading_animation(title, marker_color="star")
+        Terminal.loading_animation(starting_msg, marker_color="star")
 
-        lines = []
-        lines.append("yo mama")
-        time.sleep(3)
+        time.sleep(2)
         Terminal.append_animation(line="yo mama")
-        time.sleep(3)
-        lines.append("doggy water")
-        Terminal.append_animation(line="this dick")
-        time.sleep(3)
-        Terminal.replace_animation(line="SHE ATE THAT SHIT OUT")
-        time.sleep(3)
         Terminal.stop_animation()
-        """
+        
         Server._check_platform()
         Server._check_if_root()
         Server.check_status()
         generate_self_signed_cert()
+        Terminal.pause_animation()
+        time.sleep(2)
+        Terminal.resume_animation()
+        Terminal.stop_animation()
+        """
         tun = setup_tun_interface("10.8.0.1", "255.255.255.0")
         conn = start_tls_server(tun)
         start_forwarding(tun, conn)

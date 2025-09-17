@@ -234,23 +234,25 @@ class Terminal:
             sys.stdout.flush()
 
     @staticmethod
-    def _animate_loop(states, pause):
+    def _animate_loop(frames, pause):
         """ Handler for multithreaded animation"""
-        Terminal.hide_cursor()
+        #Terminal.hide_cursor()
+        Terminal.move_cursor_down(len(frames)-1)
         for line in Terminal._animation_lines:
             Terminal.write(f"{line}\n")
         Terminal.move_cursor_up(len(Terminal._animation_lines)+1)
         Terminal.flush()
 
         while not Terminal._stop_animation.is_set():
-            for state in states:
-                if Terminal._stop_animation.is_set():
-                    break
-                Terminal.clear_line()
-                Terminal.move_line_start()
-                Terminal.write(state)
-                Terminal.flush()
-                time.sleep(pause)
+            for states in frames:
+                for state in states:
+                    if Terminal._stop_animation.is_set():
+                        break
+                    Terminal.clear_line()
+                    Terminal.move_line_start()
+                    Terminal.write(state)
+                    Terminal.flush()
+                    time.sleep(pause)
 
     @staticmethod
     def start_animation(states, pause=0.25):
@@ -268,6 +270,7 @@ class Terminal:
         Terminal._stop_animation.set()
         Terminal._animation_lines = []
         Terminal._animation_states = []
+        Terminal._animation_frames = []
         Terminal._animation_pause = 0.25
         Terminal.show_cursor()
         if Terminal._animation_thread is not None:
@@ -286,26 +289,49 @@ class Terminal:
     @staticmethod
     def resume_animation():
         Terminal.move_down(len(Terminal._animation_states))
-        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
+        Terminal.start_animation(Terminal._animation_frames, Terminal._animation_pause)
 
     @staticmethod
-    def append_animation(line=""):
-        Terminal.move_down(1)
+    def append_animation(line="", check=True):
+        if check:
+            line = Terminal.get_color_bold(f"[-] {line}", "light blue")
         Terminal._stop_animation.set()
         if Terminal._animation_thread is not None:
             Terminal._animation_thread.join()
         Terminal._animation_lines.append(line)
-        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
+        Terminal.start_animation(Terminal._animation_frames, Terminal._animation_pause)
 
     @staticmethod
-    def replace_animation(line=""):
+    def add_animation_frame(states : list):
+        Terminal._animation_frames.append(states)
         Terminal.move_down(1)
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+        Terminal.start_animation(Terminal._animation_frames, Terminal._animation_pause)
+
+    @staticmethod
+    def pop_animation_frame():
+        Terminal._animation_frames.pop()
+        Terminal.move_down(2)
+        Terminal.move_up(1)
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+        Terminal.start_animation(Terminal._animation_frames, Terminal._animation_pause)
+
+    @staticmethod
+    def replace_animation(line="", success=True, failure=False):
+        if failure:
+            line = Terminal.get_color_bold(f"[!] {line}", "red")
+        elif success:
+            line = Terminal.get_color_bold(f"[+] {line}", "green")
         Terminal._stop_animation.set()
         if Terminal._animation_thread is not None:
             Terminal._animation_thread.join()
         Terminal._animation_lines.pop()
         Terminal._animation_lines.append(line)
-        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
+        Terminal.start_animation(Terminal._animation_frames, Terminal._animation_pause)
 
     @staticmethod
     def connecting_animation():
@@ -329,16 +355,18 @@ class Terminal:
             colored_marker = Terminal.get_color_bold(s, marker_color)
             states[i] = f"{colored_marker} {msg}"
         Terminal._animation_states = states
+        Terminal._animation_frames.append(states)
         Terminal._animation_pause = 0.15
-        Terminal.start_animation(Terminal._animation_states, pause=Terminal._animation_pause)  
+        Terminal.start_animation(Terminal._animation_frames, pause=Terminal._animation_pause)  
 
     @staticmethod
-    def append_loading_animation(msg="", marker_color="light blue", line=""):
+    def add_loading_frame(msg="", marker_color="light blue"):
         states = ['[-]', '[/]', '[|]', '[\\]']
         for i, s in enumerate(states):
             colored_marker = Terminal.get_color_bold(s, marker_color)
             states[i] = f"{colored_marker} {msg}"
-        Terminal.append_animation(states, pause=0.15, line=line)
+        Terminal._animation_frames.append(states)
+        Terminal.add_animation_frame(Terminal._animation_frames, pause=Terminal._animation_pause)
 
     """ Standard Input Managers & Helpers """
     @staticmethod
