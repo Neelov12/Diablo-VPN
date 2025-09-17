@@ -1,51 +1,64 @@
-import socket
 import ssl
-import os
-from .terminal import Terminal 
-from .certgen import generate_self_signed_cert
+import socket
+import json
+from pathlib import Path
+from .terminal import Terminal
+from .settings import Settings
 
-# Hardcoded port for now
-TLS_PORT = 4433
+CONFIG_DIR = Path.home() / ".config" / "diablo"
+CERTS_DIR = Path(__file__).parent.parent / "certs"
 
-# File paths for server certificate and key (relative to project root)
-CERT_PATH = "certs/cert.pem"
-KEY_PATH = "certs/key.pem"
+def load_config():
+    cfg_file = CONFIG_DIR / "config.json"
+    if cfg_file.exists():
+        return json.loads(cfg_file.read_text())
+    return {}
 
-def start_tls_server(tun_fd):
-    Terminal.log(f"Starting Diablo TLS server on port {TLS_PORT}")
+def start_tls_server(bind_addr="0.0.0.0", port=4433, backlog=5):
+    cfg = Settings.load_config()
+    password_required = cfg.get("require_password", False)
+    password = cfg.get("password", None)
 
-    # If first time hosting 
-    if not os.path.exists(CERT_PATH) or not os.path.exists(KEY_PATH):
-        Terminal.warn("Public certificate is missing, or this is your first time hosting. Generating new certificate.")
-        generate_self_signed_cert()
+    # SSL context
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(
+        certfile=str(CERTS_DIR / "server.crt"),
+        keyfile=str(CERTS_DIR / "server.key")
+    )
 
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_cert_chain(certfile=CERT_PATH, keyfile=KEY_PATH)
+    # TCP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((bind_addr, port))
+    sock.listen(backlog)
 
-    bindsocket = socket.socket()
-    bindsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    bindsocket.bind(('0.0.0.0', TLS_PORT))
-    bindsocket.listen(5)
+    Terminal.success(f"TLS server started on {bind_addr}:{port} "
+                     f"{'(password protected)' if password_required else ''}")
 
-    newsocket, addr = bindsocket.accept()
-    Terminal.log(f"Client connected from {addr[0]}:{addr[1]}")
+    return sock, ctx, password_required, password
 
-    tls_socket = context.wrap_socket(newsocket, server_side=True)
-    print("[+] TLS handshake successful")
-    return tls_socket
+def authenticate_client(conn, password_required, password):
+    """
+    Authenticate client after TLS handshake.
+    Returns True if auth ok, False otherwise.
+    """
+    try:
+        data = conn.recv(1024).decode()
+        msg = json.loads(data)
 
-def start_tls_client(server_ip):
-    print(f"[*] Connecting to Diablo proxy server at {server_ip}:{TLS_PORT}")
+        if password_required:
+            client_pw = msg.get("auth", {}).get("password", "")
+            if client_pw == password:
+                conn.sendall(json.dumps({"auth": "ok"}).encode())
+                return True
+            else:
+                conn.sendall(json.dumps({"auth": "fail", "reason": "invalid password"}).encode())
+                return False
+        else:
+            # No password required
+            conn.sendall(json.dumps({"auth": "ok"}).encode())
+            return True
 
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE  # NOTE: Replace with pinned cert later
-
-    raw_socket = socket.socket()
-    raw_socket.connect((server_ip, TLS_PORT))
-
-    tls_socket = context.wrap_socket(raw_socket, server_hostname=server_ip)
-    print("[+] Connected and TLS handshake completed")
-    return tls_socket
-
-
+    except Exception as e:
+        Terminal.error(f"Auth error: {e}")
+        return False

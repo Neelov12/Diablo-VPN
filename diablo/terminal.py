@@ -6,6 +6,7 @@ import termios
 import tty
 import select
 import shutil 
+import re
 from textwrap import dedent
 import pprint
 from importlib.resources import files
@@ -41,6 +42,10 @@ class Terminal:
 
     _animation_thread = None
     _stop_animation = threading.Event()
+    _animation_frames = []
+    _animation_lines = []
+    _animation_states = []
+    _animation_pause = 0.25
 
     """ Colored text helpers """
     @staticmethod
@@ -125,19 +130,37 @@ class Terminal:
             return f.read()
 
     @staticmethod
-    def write(msg, color=None, rgb=None):
-        if not color and not rgb:
-            print(msg)
-            return
-        if color: 
+    def print(msg, color=None, rgb=None, color_bold=None, bold=False):
+        if bold:
+            print(Terminal._get_ansi_b(msg))
+        elif color is not None: 
             print(Terminal._findansi(msg, Terminal.preset[color]))
-        elif rgb: 
+        elif rgb is not None: 
             print(Terminal._findansi(msg, rgb))
+        elif color_bold is not None:
+            print(Terminal._get_ansi_cb(msg, Terminal.preset[color_bold]))
+        else:
+            print(msg)
+        return
     
     @staticmethod
-    def sys_write(msg):
-        sys.stdout.write(msg)
+    def write(msg, color=None, rgb=None, color_bold=None, bold=False):
+        if bold:
+            sys.stdout.write(Terminal._get_ansi_b(msg))
+        elif color is not None: 
+            sys.stdout.write(Terminal._findansi(msg, Terminal.preset[color]))
+        elif rgb is not None: 
+            sys.stdout.write(Terminal._findansi(msg, rgb))
+        elif color_bold is not None:
+            sys.stdout.write(Terminal._get_ansi_cb(msg, Terminal.preset[color_bold]))
+        else:
+            sys.stdout.write(msg)
+        return
     
+    @staticmethod
+    def write_at(row, col, msg):
+        sys.stdout.write(f"\x1b[{row};{col}H{msg}\x1b[0m")
+
     @staticmethod
     def flush():
         sys.stdout.flush()
@@ -176,9 +199,12 @@ class Terminal:
 
     @staticmethod
     def success(msg):
-        msg_type = Terminal._get_ansi_cb("[+] Success:", Terminal.preset["green"])
-        msg_coded = Terminal._findansi(msg, Terminal.preset["green"])
-        print(f"{msg_type} {msg_coded}")
+        print(Terminal._get_ansi_cb(f"[+] {msg}", Terminal.preset["green"]))
+
+    @staticmethod
+    def proceed(msg):
+        filler = '.' if not msg.endswith('.') else ''
+        print(Terminal._get_ansi_cb(f"[+] {msg}{filler} Proceeding.", Terminal.preset["light blue"]))
 
     @staticmethod
     def quick_message(msg):
@@ -210,12 +236,20 @@ class Terminal:
     @staticmethod
     def _animate_loop(states, pause):
         """ Handler for multithreaded animation"""
+        Terminal.hide_cursor()
+        for line in Terminal._animation_lines:
+            Terminal.write(f"{line}\n")
+        Terminal.move_cursor_up(len(Terminal._animation_lines)+1)
+        Terminal.flush()
+
         while not Terminal._stop_animation.is_set():
             for state in states:
                 if Terminal._stop_animation.is_set():
                     break
-                sys.stdout.write(f"\r{state}")
-                sys.stdout.flush()
+                Terminal.clear_line()
+                Terminal.move_line_start()
+                Terminal.write(state)
+                Terminal.flush()
                 time.sleep(pause)
 
     @staticmethod
@@ -232,11 +266,46 @@ class Terminal:
     def stop_animation(final=None):
         """ End animation thread """
         Terminal._stop_animation.set()
+        Terminal._animation_lines = []
+        Terminal._animation_states = []
+        Terminal._animation_pause = 0.25
+        Terminal.show_cursor()
         if Terminal._animation_thread is not None:
             Terminal._animation_thread.join()
-        if final:
+        if final is not None:
             sys.stdout.write(f"\r{final}\n")
             sys.stdout.flush()
+    
+    @staticmethod
+    def pause_animation():
+        Terminal.move_down(1)
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+
+    @staticmethod
+    def resume_animation():
+        Terminal.move_down(len(Terminal._animation_states))
+        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
+
+    @staticmethod
+    def append_animation(line=""):
+        Terminal.move_down(1)
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+        Terminal._animation_lines.append(line)
+        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
+
+    @staticmethod
+    def replace_animation(line=""):
+        Terminal.move_down(1)
+        Terminal._stop_animation.set()
+        if Terminal._animation_thread is not None:
+            Terminal._animation_thread.join()
+        Terminal._animation_lines.pop()
+        Terminal._animation_lines.append(line)
+        Terminal.start_animation(Terminal._animation_states, Terminal._animation_pause)
 
     @staticmethod
     def connecting_animation():
@@ -253,6 +322,24 @@ class Terminal:
         sys.stdout.write(f"\r{connected}\n")
         sys.stdout.flush()
     
+    @staticmethod
+    def loading_animation(msg="", marker_color="light blue"):
+        states = ['[-]', '[/]', '[|]', '[\\]']
+        for i, s in enumerate(states):
+            colored_marker = Terminal.get_color_bold(s, marker_color)
+            states[i] = f"{colored_marker} {msg}"
+        Terminal._animation_states = states
+        Terminal._animation_pause = 0.15
+        Terminal.start_animation(Terminal._animation_states, pause=Terminal._animation_pause)  
+
+    @staticmethod
+    def append_loading_animation(msg="", marker_color="light blue", line=""):
+        states = ['[-]', '[/]', '[|]', '[\\]']
+        for i, s in enumerate(states):
+            colored_marker = Terminal.get_color_bold(s, marker_color)
+            states[i] = f"{colored_marker} {msg}"
+        Terminal.append_animation(states, pause=0.15, line=line)
+
     """ Standard Input Managers & Helpers """
     @staticmethod
     def prompt_response(name=None, options=[], yes_no=False, yes_no_enter=False, mercy=True):
@@ -277,7 +364,10 @@ class Terminal:
                 options.append("")
                 prompt = Terminal.get_bold("(y/n) or (Enter)") + " >> "
 
-        response = input(prompt).strip()
+        try:
+            response = input(prompt).strip()
+        except KeyboardInterrupt:
+            sys.exit(1)
 
         if options: 
             if not response in options: 
@@ -296,63 +386,6 @@ class Terminal:
         
         return response, yes
     
-    """ Terminal Screen Control """
-    @staticmethod
-    def clear():
-        sys.stdout.write("\x1b[2J")
-
-    @staticmethod
-    def launch_terminal():
-        sys.stdout.write("\x1b[?1049h")
-    
-    @staticmethod
-    def close_terminal():
-        sys.stdout.write("\x1b[?1049l")
-
-    """ Cursor Controls """
-    @staticmethod 
-    def hide_cursor():
-        sys.stdout.write("\x1b[?25l")
-    
-    @staticmethod 
-    def show_cursor():
-        sys.stdout.write("\x1b[?25h")
-
-    @staticmethod 
-    def save_cursor():
-        sys.stdout.write("\x1b 7") 
-
-    @staticmethod 
-    def restore_cursor():
-        sys.stdout.wriet("\x1b 8")
-
-    @staticmethod
-    def move_cursor_home():
-        sys.stdout.write("\x1b[H")  
-    
-    def move_cursor(line, col):
-        sys.stdout.write(f"\x1b[{line};{col}H")
-
-    @staticmethod 
-    def move_cursor_up(lines=None):
-        if lines:
-            sys.stdout.write(f"\x1b[{lines}A")
-        else:
-            sys.stdout.write("\x1b[A")
-            
-    @staticmethod 
-    def move_cursor_up(lines=None):
-        if lines:
-            sys.stdout.write(f"\x1b[{lines}B")
-        else:
-            sys.stdout.write("\x1b[B")   
-            
-    @staticmethod
-    def write_at(row, col, msg):
-        sys.stdout.write(f"\x1b[{row};{col}H{msg}\x1b[0m")
-    
-    """ Terminal UI - Menu Support """
-
     @staticmethod
     def read_control_key(other_keys=[],timeout=0.1):
         """ Presently reads arrow keys up, down, left, right, esc, bckspc, & enter"""
@@ -420,6 +453,110 @@ class Terminal:
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return None
+    
+    """ Terminal Screen Control using ANSI """
+    @staticmethod
+    def clear():
+        sys.stdout.write("\x1b[2J")
+    
+    @staticmethod
+    def clear_line():
+        sys.stdout.write("\x1b[2K")
+
+    @staticmethod
+    def move_up(lines=1):
+        for l in range(lines):
+            Terminal.clear_line()
+            sys.stdout.write(f"\x1b[F")
+        Terminal.clear_line()
+
+    @staticmethod
+    def move_down(lines=1):
+        for l in range(lines):
+            Terminal.clear_line()
+            sys.stdout.write(f"\x1b[E")
+        Terminal.clear_line()
+
+    @staticmethod
+    def launch_terminal():
+        sys.stdout.write("\x1b[?1049h")
+    
+    @staticmethod
+    def close_terminal():
+        sys.stdout.write("\x1b[?1049l")
+
+    """ Cursor Controls """
+    @staticmethod
+    def get_cursor_position():
+        sys.stdout.write("\x1b[6n")
+        sys.stdout.flush()
+
+        # Temporarily change terminal mode to raw
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            response = ''
+            while True:
+                ch = sys.stdin.read(1)
+                response += ch
+                if ch == 'R':
+                    break
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+        # Parse the response: ESC[row;colR
+        match = re.match(r'\x1b\[(\d+);(\d+)R', response)
+        if match:
+            row, col = map(int, match.groups())
+            return row, col
+        else:
+            return None, None
+
+    @staticmethod 
+    def hide_cursor():
+        sys.stdout.write("\x1b[?25l")
+    
+    @staticmethod 
+    def show_cursor():
+        sys.stdout.write("\x1b[?25h")
+
+    @staticmethod 
+    def save_cursor():
+        sys.stdout.write("\x1b 7") 
+
+    @staticmethod 
+    def restore_cursor():
+        sys.stdout.wriet("\x1b 8")
+
+    @staticmethod
+    def move_cursor_home():
+        sys.stdout.write("\x1b[H")  
+    
+    def move_cursor(line, col):
+        sys.stdout.write(f"\x1b[{line};{col}H")
+
+    @staticmethod 
+    def move_cursor_up(lines=1, exact=False):
+        """ Allows cursor to be moved up at exact current column or at beginning of previous line"""
+        if exact:
+            sys.stdout.write(f"\x1b[{lines}A")
+        else:
+            sys.stdout.write(f"\x1b[{lines}F")
+    
+    @staticmethod
+    def move_cursor_down(lines=1, exact=False):
+        """ Allows cursor to be moved down at exact current column or at beginning of next line"""
+        if exact:
+            sys.stdout.write(f"\x1b[{lines}B")
+        else:
+            sys.stdout.write(f"\x1b[{lines}E")
+    
+    @staticmethod
+    def move_line_start():
+        Terminal.move_cursor_down()
+        Terminal.move_cursor_up()
+    
 
 
 

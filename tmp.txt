@@ -1,4 +1,27 @@
-nsi(text):
-    """Removes ANSI escape sequences from a string."""
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    return ansi_escape.sub('', text)
+
+r_position():
+    # Send ANSI code to ask for cursor position
+    sys.stdout.write("\x1b[6n")
+    sys.stdout.flush()
+
+    # Temporarily change terminal mode to raw
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        response = ''
+        while True:
+            ch = sys.stdin.read(1)
+            response += ch
+            if ch == 'R':
+                break
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    # Parse the response: ESC[row;colR
+    match = re.match(r'\x1b\[(\d+);(\d+)R', response)
+    if match:
+        row, col = map(int, match.groups())
+        return row, col
+    else:
+        return None, None

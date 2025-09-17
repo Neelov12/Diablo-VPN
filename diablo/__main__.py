@@ -31,8 +31,9 @@ def arguments():
     subparsers.add_parser("disconnect", help='Disconnect from current connection')
     """ settings """
     settings_parser = subparsers.add_parser("settings", help='Change configuration settings\n\'-restore\' to revert to default')
-    settings_parser.add_argument('-restore', action='store_true', help='IP address of the Diablo proxy server')    
-
+    settings_parser.add_argument('-restore', action='store_true', help='IP address of the Diablo proxy server') 
+    """ set-password """
+    pass_parser = subparsers.add_parser("set-password", help='Change password of Diablo server, this is the password clients must enter to connect to you') 
 
     return parser.parse_args()
 
@@ -54,3 +55,6 @@ def main():
             Settings.reset_to_default()
         else:
             Settings.settings_menu()
+    elif args.command == 'set-password':
+        from .auth import Authentication
+        Authentication.setup_password()

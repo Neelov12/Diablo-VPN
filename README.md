@@ -38,3 +38,6 @@ Goal    Feasibility over LAN with Router    Notes
 🧻 Rogue DHCP/DNS/ARP attack defense    ✅ With added client rules  We'll write firewall rules to block ports 53 (DNS), 67/68 (DHCP), and ARP replies
 🔁 Proxy ARP response   ✅ Works via spoofing ARP replies   Proxy pretends to be clients when needed
 🧱 Firewalling LAN traffic on clients   ✅ Cross-platform achievable    Windows/macOS/Linux all allow LAN blocking with ufw, pf, or netsh
+
+If requirements did not install automatically:
+pip install -r requirements.txt

@@ -242,7 +242,7 @@ class Menus:
         Terminal.clear()
         Terminal.move_cursor_home()
         for line in lines: 
-            Terminal.sys_write(f"{line}\n")
+            Terminal.write(f"{line}\n")
         Menus._draw_footer()
         Terminal.flush()
 
@@ -331,7 +331,7 @@ class Menus:
     def close_menu():
         Terminal.close_terminal()
         Terminal.show_cursor()
-        Menus._print_cache()
+        #Menus._print_cache()
         Menus._clear_cache()
 
     @staticmethod

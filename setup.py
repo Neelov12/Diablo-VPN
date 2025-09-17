@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "diablo": ["assets/*", "config/*"],
+        "diablo": ["assets/*", "defaults/*"],
     },
     entry_points={
         'console_scripts': [
@@ -16,5 +16,6 @@ setup(
     install_requires=[
         'pyOpenSSL',
         'pyroute2; platform_system=="Linux"',
+        'argon2-cffi',
     ],
 )
