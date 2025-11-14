@@ -1,4 +1,4 @@
-![alt text](https://github.com/Neelov12/Diablo/blob/1a07990e83ea0130d80f1fd16defab8a2a8ec3d7/logo.PNG "logo")
+![alt text](https://github.com/Neelov12/Diablo/blob/320d44b089b116f223bdac13da280cc1e830e923/logo.png "logo")
 
 # Diablo VPN 
 
