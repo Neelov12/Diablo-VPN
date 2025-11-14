@@ -2,16 +2,16 @@
 
 # Diablo VPN 
 ## About
-**Diablo VPN** is an open-source, local network VPN service meant to protect your traffic on a home or business network. 
+**Diablo VPN** is an open-source, local network VPN service designed to protect your traffic on any home or business network. 
 
 > *"Wait, a local network VPN? What's the point of that?"*
 
-Well, you might be surprised how easy it is for hackers to infiltrate and spy on your local network. For most router set ups, a couple of ARP requests from a malicious device is all it takes to spoof your device's identity. This means just about anyone with the motivation can act as a man in the middle between you and the internet (and that's just the start). 
+Well, you might be surprised how easy it is for hackers to infiltrate and spy on your local network. For most router set ups, a couple of ARP requests from a malicious device is all it takes to spoof your device's identity. This means just about anyone with enough motivation can act as a man in the middle between you and the internet (and that's just the start). 
 
-Diablo VPN addresses this by allowing users to self-host a VPN server on their local network, allowing trusted clients to securely connect, encrypt, and reroute their traffic through the server. Additionally, the server acts as a manager of sorts for clients, dropping any ARP requests that come their way. This allows clients completely disappear from the POV of an outside observer. 
+Diablo VPN addresses this by allowing users to self-host a VPN server on their local network, allowing trusted local clients to securely connect, encrypt, and reroute their traffic through the self-hosted server. Additionally, this proxy server acts as a manager of sorts for clients. For example, by dropping any ARP requests that come their way. This allows clients to completely disappear from the POV of any outside observers, and securely communicate within the VPN environment. 
 
 ## Features 
-Diablo VPN hosts a variety of unique protective features for the local network:\
+Diablo VPN hosts a variety of unique protective features for the local network, not currently available in the mainstream market:
 
 > 🛡️  **Client invisibility**:   Using firewall + TUN isolation + no ARP replies\
 🔐 **Encrypted comms (TLS)**:   All traffic between client and proxy is encrypted over TCP\
