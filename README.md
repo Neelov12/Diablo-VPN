@@ -1,5 +1,6 @@
 ![alt text](https://github.com/Neelov12/Diablo/blob/320d44b089b116f223bdac13da280cc1e830e923/logo.png "logo")
 
+# Diablo VPN 
 ## About
 **Diablo VPN** is an open-source, local network VPN service meant to protect your traffic on a home or business network. 
 
